@@ -31,6 +31,31 @@ PAGES = os.path.join(DIST, "gh-pages")
 REPO_ID = "repository.profanityfilter"
 REPO_VERSION = "1.0.0"
 
+INDEX_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Profanity Filter Repository</title>
+  <style>
+    body { font-family: sans-serif; margin: 3rem auto; max-width: 40rem; line-height: 1.5; }
+    a { color: #0366d6; }
+  </style>
+</head>
+<body>
+  <h1>Profanity Filter Repository</h1>
+  <p>This GitHub Pages site hosts the Kodi <strong>Profanity Filter</strong> add-on
+  and its repository index. It is meant to be consumed by Kodi's add-on manager,
+  not browsed by humans.</p>
+  <ul>
+    <li><a href="addons.xml">Repository index (addons.xml)</a></li>
+    <li><a href="repository.profanityfilter-1.0.0.zip">Repository add-on (install once in Kodi)</a></li>
+    <li><a href="service.profanity.filter/">Add-on releases</a></li>
+  </ul>
+  <p>Source: <a href="https://github.com/Stefan-Pretorius/ProfanityFilter">github.com/Stefan-Pretorius/ProfanityFilter</a></p>
+</body>
+</html>
+"""
+
 
 def read_addon_meta(path=ADDON_XML):
     with open(path, "r", encoding="utf-8") as fh:
@@ -86,6 +111,8 @@ def main():
         fh.write(xml)
     with open(os.path.join(PAGES, "addons.xml.md5"), "w", encoding="utf-8") as fh:
         fh.write(checksum)
+    with open(os.path.join(PAGES, "index.html"), "w", encoding="utf-8") as fh:
+        fh.write(INDEX_HTML)
 
     # 4. GitHub Pages payload
     pages_addon_dir = os.path.join(PAGES, addon_id, version)
