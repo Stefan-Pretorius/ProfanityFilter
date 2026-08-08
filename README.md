@@ -23,11 +23,12 @@ Compatible with Kodi 19 (Matrix), 20 (Nexus) and 21 (Omega).
 ## Install (one time)
 
 1. On the TV in Kodi: **Settings → System → Add-ons → Unknown sources → ON**.
-2. **File manager → Add source → `<none>`** and enter:
+2. **File manager → Add source → `<none>`** and enter (note the trailing slash):
    `https://stefan-pretorius.github.io/ProfanityFilter/`
    Give it a name (e.g. `ProfanityFilter`).
-3. **Settings → Add-ons → Install from zip file** → browse to that source →
-   install `repository.profanityfilter-1.0.0.zip`.
+3. **Settings → Add-ons → Install from zip file** → browse to that source → the
+   listing shows real filenames (e.g. `repository.profanityfilter-1.0.0.zip`) →
+   select it and install.
 4. **Install from repository → Profanity Filter Repository → Profanity
    Filter → Install.**
 

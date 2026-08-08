@@ -31,30 +31,48 @@ PAGES = os.path.join(DIST, "gh-pages")
 REPO_ID = "repository.profanityfilter"
 REPO_VERSION = "1.0.0"
 
-INDEX_HTML = """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Profanity Filter Repository</title>
-  <style>
-    body { font-family: sans-serif; margin: 3rem auto; max-width: 40rem; line-height: 1.5; }
-    a { color: #0366d6; }
-  </style>
-</head>
-<body>
-  <h1>Profanity Filter Repository</h1>
-  <p>This GitHub Pages site hosts the Kodi <strong>Profanity Filter</strong> add-on
-  and its repository index. It is meant to be consumed by Kodi's add-on manager,
-  not browsed by humans.</p>
-  <ul>
-    <li><a href="addons.xml">Repository index (addons.xml)</a></li>
-    <li><a href="repository.profanityfilter-1.0.0.zip">Repository add-on (install once in Kodi)</a></li>
-    <li><a href="service.profanity.filter/">Add-on releases</a></li>
-  </ul>
-  <p>Source: <a href="https://github.com/Stefan-Pretorius/ProfanityFilter">github.com/Stefan-Pretorius/ProfanityFilter</a></p>
-</body>
-</html>
-"""
+
+def apache_listing(title, names):
+    """
+    Generate a GitHub Pages index.html that Kodi can browse.
+
+    Kodi's HTTP directory parser (HTTPDirectory.cpp) only accepts an entry
+    whose *anchor text equals its href* (the filename), so friendly labels
+    must not be used. This produces a listing in Apache autoindex style,
+    one '<a href="name">name</a>' per line.
+    """
+    rows = "\n".join('<a href="{0}">{0}</a>'.format(n) for n in names)
+    return (
+        "<!DOCTYPE html>\n"
+        "<html>\n"
+        "<head>\n"
+        "<title>{0}</title>\n"
+        "</head>\n"
+        "<body>\n"
+        "<h1>{0}</h1><hr><pre>\n"
+        "{1}\n"
+        "</pre><hr>\n"
+        "</body>\n"
+        "</html>\n"
+    ).format(title, rows)
+
+
+def write_directory_listings(root, title):
+    """
+    Write an index.html into *root* and every sub-directory so that Kodi can
+    browse the tree from the top level down to the add-on zip.
+    """
+    for cur, dirs, files in os.walk(root):
+        dirs.sort()
+        names = []
+        if os.path.abspath(cur) != os.path.abspath(root):
+            names.append("../")
+        names.extend(d + "/" for d in dirs)
+        names.extend(sorted(f for f in files if f != "index.html"))
+        rel = os.path.relpath(cur, root)
+        page_title = title if rel == "." else title + "/" + rel.replace(os.sep, "/")
+        with open(os.path.join(cur, "index.html"), "w", encoding="utf-8") as fh:
+            fh.write(apache_listing(page_title, names))
 
 
 def read_addon_meta(path=ADDON_XML):
@@ -111,14 +129,15 @@ def main():
         fh.write(xml)
     with open(os.path.join(PAGES, "addons.xml.md5"), "w", encoding="utf-8") as fh:
         fh.write(checksum)
-    with open(os.path.join(PAGES, "index.html"), "w", encoding="utf-8") as fh:
-        fh.write(INDEX_HTML)
 
     # 4. GitHub Pages payload
     pages_addon_dir = os.path.join(PAGES, addon_id, version)
     os.makedirs(pages_addon_dir)
     shutil.copy2(addon_zip, os.path.join(pages_addon_dir, os.path.basename(addon_zip)))
     shutil.copy2(repo_zip, os.path.join(PAGES, os.path.basename(repo_zip)))
+
+    # 5. Kodi-browsable directory listings (index.html in every directory)
+    write_directory_listings(PAGES, "Profanity Filter Repository")
 
     print("  ->", os.path.join(PAGES, "addons.xml"))
     print("  ->", os.path.join(PAGES, "addons.xml.md5"))
