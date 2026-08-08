@@ -1,0 +1,162 @@
+# Profanity Filter — Word List
+# =============================
+# One word or phrase per line. Lines starting with '#' are comments and are
+# ignored. Edit freely to add or remove words for your household.
+#
+# Optional wildcards:
+#   * matches a single character.  e.g.  sh*t  matches "shit" / "shut" / "shat"
+#   (but NOT "shift", "sheet" or "shout" — this keeps innocent words audible).
+#
+# The list is split into tiers. Only the words ABOVE the dashed line are
+# active. Uncomment entries in the lower tiers to enable them.
+#
+# NOTE: matching is case-insensitive and whole-word, so "ass" will never
+# match "class", "pass" or "assessment".
+# -----------------------------------------------------------------------------
+
+# --- Active: strong, unambiguous profanity ------------------------------
+fuck
+fucks
+fucked
+fucker
+fuckers
+fucking
+fuck off
+fuck you
+fucked up
+fuckhead
+fuckface
+fucktard
+fuckwad
+fuckwit
+fuckboy
+motherfucker
+motherfuckers
+motherfucking
+mother fucker
+mother fucking
+shit
+shitty
+shite
+shithead
+shithole
+bullshit
+piece of shit
+holy shit
+dipshit
+dumbshit
+horseshit
+cunt
+cunts
+asshole
+assholes
+ass
+arsehole
+arseholes
+arse
+asshat
+jackass
+jackasses
+asswipe
+dick
+dicks
+dickhead
+dickheads
+dickwad
+cock
+cocks
+cockhead
+cocksucker
+cocksuckers
+cocksucking
+bitch
+bitches
+bitching
+bitchy
+son of a bitch
+sons of bitches
+bastard
+bastards
+pussy
+pussies
+twat
+twats
+whore
+whores
+whoring
+slut
+sluts
+slutty
+prick
+pricks
+wanker
+wankers
+wanking
+wank
+knobhead
+knobheads
+tosser
+tossers
+douche
+douchebag
+douchebags
+# -----------------------------------------------------------------------------
+
+# --- Optional: mild profanity -------------------------------------------
+# Uncomment to also mute milder swear words. These appear very often in
+# normal dialogue, so enabling them mutes noticeably more of the story.
+# damn
+# damnit
+# damn it
+# goddamn
+# goddamnit
+# hell
+# crap
+# crappy
+# god
+# jesus
+# christ
+# oh my god
+# what the hell
+
+# --- Optional: sexual / anatomical terms ---------------------------------
+# Used in documentaries, news and sex-education content, so muted by default.
+# penis
+# penises
+# vagina
+# vaginas
+# clitoris
+# testicle
+# testicles
+# erection
+# orgasm
+# intercourse
+# masturbate
+# condom
+# nipple
+# nipples
+# semen
+# sperm
+
+# --- Optional: slurs -------------------------------------------------------
+# DISABLED BY DEFAULT. The words below are hate speech. Only uncomment if
+# you specifically want these muted in your household. It is strongly
+# recommended that very young children are never exposed to these words.
+# nigger
+# nigga
+# niggas
+# faggot
+# faggots
+# fag
+# dyke
+# dykes
+# spic
+# spics
+# chink
+# chinks
+# kike
+# kikes
+# wetback
+# beaner
+# gook
+# coon

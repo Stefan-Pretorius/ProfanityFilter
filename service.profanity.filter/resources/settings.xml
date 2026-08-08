@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+    <category label="Timing">
+        <setting id="pre_buffer" type="slider" label="Pre-word buffer (seconds)" default="0.3" range="0.0,0.1,2.0" option="float"/>
+        <setting id="post_buffer" type="slider" label="Post-word buffer (seconds)" default="0.3" range="0.0,0.1,2.0" option="float"/>
+    </category>
+    <category label="Subtitles">
+        <setting id="hide_subtitles" type="bool" label="Hide subtitles after scanning" default="true"/>
+    </category>
+    <category label="Notifications">
+        <setting id="show_notifications" type="bool" label="Show on-screen notifications" default="true"/>
+    </category>
+    <category label="Advanced">
+        <setting id="subtitle_wait" type="slider" label="Subtitle scan delay (seconds)" default="10" range="1,1,30" option="int"/>
+        <setting id="subtitle_retries" type="slider" label="Subtitle search retries" default="10" range="1,1,20" option="int"/>
+    </category>
+</settings>

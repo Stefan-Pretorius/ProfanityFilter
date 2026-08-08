@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.5.0" provider-name="Stefan Pretorius">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.service" library="service.py"/>
+  <extension point="xbmc.addon.metadata">
+    <platform>all</platform>
+    <license>GPL-2.0-or-later</license>
+    <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
+    <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Works with local files and streaming add-ons such as ororo.tv.</description>
+    <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
+    <news>1.5.0:
+- Fix false positives caused by overly greedy wildcards (sh*t no longer matches "shift", c*nt no longer matches "count").
+- Ship a curated word list. Innocent/common words (god, hell, abuse, etc.) are no longer muted by default.
+- Use the active video player for subtitle discovery instead of a hardcoded player id.</news>
+  </extension>
+</addon>
