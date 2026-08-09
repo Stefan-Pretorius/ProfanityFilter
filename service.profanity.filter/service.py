@@ -164,29 +164,19 @@ class ProfanityFilterPlayer(xbmc.Player):
     def _process_playback(self):
         """
         Core logic: find subtitles -> match bad words -> start real-time muting.
+
+        Subtitles are only ever used as a *data source*. The subtitle display
+        is turned back off on every exit path once the scan finishes, so
+        profanity (or any subtitle) text never stays on screen. This also
+        means the filter works even when the user keeps subtitles switched off.
         """
         subtitle_wait = _get_setting_int("subtitle_wait", 10)
         subtitle_retries = _get_setting_int("subtitle_retries", 10)
         retry_interval = 3  # seconds between retries
-        hide_subs = _get_setting_bool("hide_subtitles", True)
 
         # Wait a few seconds for the player to initialise
         log("Waiting 3s for player to initialise...")
         for _ in range(3):
-            if self._stop_muting.is_set() or self._monitor.abortRequested():
-                return
-            time.sleep(1)
-
-        if not self.isPlaying():
-            log("No longer playing — aborting scan.", xbmc.LOGDEBUG)
-            return
-
-        # --- Force-enable subtitles so Kodi downloads/streams them ---
-        self._force_enable_subtitles()
-
-        # Wait for the subtitle to actually load
-        log("Waiting {}s for subtitle to load...".format(subtitle_wait))
-        for _ in range(subtitle_wait):
             if self._stop_muting.is_set() or self._monitor.abortRequested():
                 return
             time.sleep(1)
@@ -212,61 +202,89 @@ class ProfanityFilterPlayer(xbmc.Player):
         patterns = build_patterns(word_list)
         log("Loaded {} filter pattern(s).".format(len(patterns)))
 
-        # --- Locate subtitle (with retries) ---
-        cues = None
-        for attempt in range(1, subtitle_retries + 1):
-            if self._stop_muting.is_set() or self._monitor.abortRequested():
+        # --- Force-enable subtitles only for streaming sources ---
+        # Streaming add-ons (e.g. ororo.tv) only deliver the subtitle stream
+        # while subtitles are enabled, so we briefly switch them on to capture
+        # the data. Local subtitle files are read straight off disk and never
+        # need (or get) the subtitle display switched on.
+        subs_were_off = not self._subtitles_enabled()
+        subs_forced = False
+        if video_path.startswith(("http://", "https://", "plugin://")):
+            self._force_enable_subtitles()
+            subs_forced = True
+
+        matched = []
+        try:
+            # Wait for the subtitle to actually load (streams only)
+            log("Waiting {}s for subtitle to load...".format(subtitle_wait))
+            for _ in range(subtitle_wait):
+                if self._stop_muting.is_set() or self._monitor.abortRequested():
+                    return
+                time.sleep(1)
+
+            if not self.isPlaying():
+                log("No longer playing — aborting scan.", xbmc.LOGDEBUG)
                 return
 
-            # Try Strategy A: Get subtitle URL and download it
-            cues = self._try_get_subtitle_from_url()
-            if cues:
-                log("Got {} cues from subtitle URL (attempt {}).".format(len(cues), attempt))
-                break
+            # --- Locate subtitle (with retries) ---
+            cues = None
+            for attempt in range(1, subtitle_retries + 1):
+                if self._stop_muting.is_set() or self._monitor.abortRequested():
+                    return
 
-            # Try Strategy B: Search for local subtitle file
-            cues = self._try_get_subtitle_from_file(video_path)
-            if cues:
-                log("Got {} cues from local file (attempt {}).".format(len(cues), attempt))
-                break
+                # Try Strategy A: Get subtitle URL and download it
+                cues = self._try_get_subtitle_from_url()
+                if cues:
+                    log("Got {} cues from subtitle URL (attempt {}).".format(len(cues), attempt))
+                    break
 
-            log("Subtitle not found (attempt {}/{}). Retrying in {}s...".format(
-                attempt, subtitle_retries, retry_interval))
-            time.sleep(retry_interval)
+                # Try Strategy B: Search for local subtitle file
+                cues = self._try_get_subtitle_from_file(video_path)
+                if cues:
+                    log("Got {} cues from local file (attempt {}).".format(len(cues), attempt))
+                    break
 
-        if not cues:
-            log("No subtitle found or parsed — profanity filter inactive.", xbmc.LOGWARNING)
-            notify("No subtitle found. Filter inactive for this video.")
-            return
+                log("Subtitle not found (attempt {}/{}). Retrying in {}s...".format(
+                    attempt, subtitle_retries, retry_interval))
+                time.sleep(retry_interval)
 
-        log("Parsed {} subtitle cue(s).".format(len(cues)))
+            if not cues:
+                log("No subtitle found or parsed — profanity filter inactive.", xbmc.LOGWARNING)
+                notify("No subtitle found. Filter inactive for this video.")
+                return
 
-        # --- Match bad words ---
-        matched = find_matching_cues(cues, patterns)
-        log("Found {} cue(s) containing bad words.".format(len(matched)))
+            log("Parsed {} subtitle cue(s).".format(len(cues)))
 
-        if not matched:
-            log("No bad words found in subtitles.")
-            notify("No bad words found. Nothing to mute.")
-            return
+            # --- Match bad words ---
+            matched = find_matching_cues(cues, patterns)
+            log("Found {} cue(s) containing bad words.".format(len(matched)))
 
-        # --- Build mute intervals ---
-        pre_buf = _get_setting_float("pre_buffer", 0.3)
-        post_buf = _get_setting_float("post_buffer", 0.3)
-        intervals = _build_intervals(matched, pre_buffer=pre_buf, post_buffer=post_buf)
-        merged = _merge_intervals(intervals)
+            if not matched:
+                log("No bad words found in subtitles.")
+                notify("No bad words found. Nothing to mute.")
+                return
 
-        log("Created {} mute interval(s). Starting real-time monitor.".format(len(merged)))
-        notify("{} word(s) will be muted.".format(len(matched)))
+            # --- Build mute intervals ---
+            pre_buf = _get_setting_float("pre_buffer", 0.3)
+            post_buf = _get_setting_float("post_buffer", 0.3)
+            intervals = _build_intervals(matched, pre_buffer=pre_buf, post_buffer=post_buf)
+            merged = _merge_intervals(intervals)
 
-        # --- Hide subtitles from screen (data already parsed) ---
-        if hide_subs:
-            self._hide_subtitles()
-            log("Subtitles hidden from display.")
+            log("Created {} mute interval(s). Starting real-time monitor.".format(len(merged)))
+            notify("{} word(s) will be muted.".format(len(matched)))
 
-        # --- Start real-time mute monitoring ---
-        self._mute_controller = MuteController(merged)
-        self._start_mute_loop()
+            # --- Start real-time mute monitoring ---
+            self._mute_controller = MuteController(merged)
+            self._start_mute_loop()
+        finally:
+            # Never leave profanity text on screen. Hide subtitles whenever
+            # bad words were found, and restore the user's "subtitles off"
+            # preference if we switched them on ourselves for a streaming
+            # source. If the user had subtitles on already and no bad words
+            # were found, leave them exactly as they were.
+            if matched or (subs_forced and subs_were_off):
+                self._hide_subtitles()
+                log("Subtitles hidden from display.")
 
     def _get_player_id(self, default=1):
         """
@@ -498,6 +516,26 @@ class ProfanityFilterPlayer(xbmc.Player):
     # ------------------------------------------------------------------
     # Subtitle visibility control
     # ------------------------------------------------------------------
+
+    def _subtitles_enabled(self):
+        """Return True if the active video player currently has subtitles on."""
+        try:
+            request = json.dumps({
+                "jsonrpc": "2.0",
+                "method": "Player.GetProperties",
+                "params": {
+                    "playerid": self._get_player_id(),
+                    "properties": ["subtitleenabled"]
+                },
+                "id": 1
+            })
+            data = json.loads(xbmc.executeJSONRPC(request))
+            result = data.get("result", {})
+            if isinstance(result, dict):
+                return bool(result.get("subtitleenabled", False))
+        except Exception as e:
+            log("Could not read subtitle state: {}".format(str(e)))
+        return False
 
     def _force_enable_subtitles(self):
         """

@@ -6,10 +6,19 @@ add-ons such as ororo.tv), scans it against a word list, and mutes the audio
 exactly when a bad word is spoken — so you never hear it, and the story stays
 intact.
 
+Subtitle **text is never shown on screen**: the add-on only uses the subtitle
+data for timing, so you can keep subtitles switched off and profanity never
+appears on the display.
+
 Compatible with Kodi 19 (Matrix), 20 (Nexus) and 21 (Omega).
 
-## Why v1.5.0
+## Why v1.6.0
 
+- **No subtitles on screen.** The filter works with subtitles switched off.
+  Local files are read from disk directly (never displayed); streaming
+  subtitles are only enabled long enough to capture the timing data, then
+  hidden again. The old "Hide subtitles after scanning" toggle is gone —
+  profanity text is always kept off the screen.
 - **No more false positives.** Wildcards are now *single-character* masks, so
   `sh*t` matches `shit` but no longer `shift` / `sheet` / `shout`, and `c*nt`
   no longer matches `count`.
