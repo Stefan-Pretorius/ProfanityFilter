@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "comment": "Scene-skip timestamps for the Profanity Filter Kodi add-on. Keys are LOWERCASE movie titles exactly as matched by the add-on (usually the movie filename without extension or year). Each entry is a list of {start, end} scene windows in one of these time formats: 'h:mm:ss', 'm:ss', or plain seconds. A 'default' key applies to every video. Edit freely; the add-on fetches this file automatically by URL at play time, so you never need to copy it to the TV.",
+  "skipdata": {
+    "example movie (2020)": [
+      { "start": "1:03:45", "end": "1:03:56" },
+      { "start": "1:20:28", "end": "1:20:42" }
+    ],
+    "default": [
+      { "start": "00:15:00", "end": "00:15:30" }
+    ]
+  }
+}
