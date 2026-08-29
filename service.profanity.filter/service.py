@@ -41,6 +41,9 @@ from scene_skip import (
     SceneSkipController,
     find_skip_file,
     parse_skip_file,
+    get_remote_skip_data,
+    match_remote_intervals,
+    _clean_title,
 )
 
 # ---------------------------------------------------------------------------
@@ -60,6 +63,15 @@ POLL_INTERVAL = 0.15  # 150ms
 
 def log(message, level=xbmc.LOGINFO):
     xbmc.log("{} {}".format(LOG_TAG, message), level=level)
+
+
+def _get_setting(key, default=""):
+    """Return a setting value as a string (falls back to *default*)."""
+    try:
+        val = _ADDON.getSetting(key)
+        return val if val else default
+    except (AttributeError, TypeError):
+        return default
 
 
 def _get_setting_float(key, default):
@@ -234,9 +246,11 @@ class ProfanityFilterPlayer(xbmc.Player):
         matched = []
         subs_were_on = self._subtitles_enabled()
         subs_forced = False
+        is_streaming = video_path.startswith(("http://", "https://", "plugin://"))
         wait_time = 0
+        exposed_tracks = 0
 
-        if video_path.startswith(("http://", "https://", "plugin://")):
+        if is_streaming:
             log("Streaming source detected (playerid={}, subs_were_on={}).".format(
                 self._get_player_id(), subs_were_on))
             if subs_were_on:
@@ -246,14 +260,16 @@ class ProfanityFilterPlayer(xbmc.Player):
                     self._get_player_id()))
             else:
                 # Force them on so the streaming add-on delivers the subtitle.
-                self._force_enable_subtitles()
+                # Enabling an external subtitle is an asynchronous negotiation
+                # with the source, so this is retried again inside the loop
+                # below rather than only once.
+                enabled_now, exposed_tracks = self._force_enable_subtitles()
                 subs_forced = True
                 wait_time = subtitle_wait
-                enabled_now = self._subtitles_enabled()
-                log("Subtitles active after force-enable: {}".format(enabled_now))
+                log("Subtitles active after force-enable: {} ({} track(s) exposed).".format(
+                    enabled_now, exposed_tracks))
                 if not enabled_now:
-                    notify_debug("Tried to force subtitles on but none became active.[CR]Playerid={}".format(
-                        self._get_player_id()))
+                    self._report_force_failure(exposed_tracks)
 
         try:
             # --- Scene-skip setup (independent of subtitle discovery) ---
@@ -283,6 +299,16 @@ class ProfanityFilterPlayer(xbmc.Player):
                 if self._stop_muting.is_set() or self._monitor.abortRequested():
                     return
 
+                # Streaming subtitle enabling is asynchronous: the source may
+                # only expose a track after a delay. Re-attempt the force on
+                # each retry so a late-appearing subtitle gets picked up.
+                if is_streaming and not subs_were_on and not self._subtitles_enabled():
+                    enabled_now, exposed = self._force_enable_subtitles()
+                    if enabled_now:
+                        log("Subtitles became active during retry loop.")
+                    elif exposed > exposed_tracks:
+                        exposed_tracks = exposed
+
                 # Try Strategy A: Get subtitle URL and download it
                 cues, reason_a = self._try_get_subtitle_from_url()
                 if cues:
@@ -304,8 +330,13 @@ class ProfanityFilterPlayer(xbmc.Player):
             if not cues:
                 log("No subtitle found or parsed — profanity filter inactive.", xbmc.LOGWARNING)
                 reason = " | ".join(dict.fromkeys(last_reason))
-                notify_debug("Subtitle not found.[CR]Player:{}[CR]{}".format(
-                    self._get_player_id(), reason[:220]))
+                if is_streaming and not subs_were_on:
+                    self._report_force_failure(exposed_tracks)
+                    notify_debug("Subtitle not found (streaming, subs off).[CR]Player:{}[CR]{}[CR]{}".format(
+                        self._get_player_id(), reason[:180], exposed_tracks))
+                else:
+                    notify_debug("Subtitle not found.[CR]Player:{}[CR]{}".format(
+                        self._get_player_id(), reason[:220]))
                 notify("No subtitle found. Filter inactive for this video.")
                 return
 
@@ -613,73 +644,130 @@ class ProfanityFilterPlayer(xbmc.Player):
             log("Could not read subtitle state: {}".format(str(e)))
         return False
 
-    def _force_enable_subtitles(self):
+    def _get_subtitle_track_list(self):
         """
-        Force-enable subtitles in the player so Kodi downloads/streams them.
-        This ensures the add-on can parse the subtitle data even if the user
-        had subtitles turned off.
+        Return the list of subtitle tracks currently exposed by the player.
+        For external-URL streaming add-ons this list is often empty until the
+        source actually delivers a subtitle; enabling subs is an asynchronous
+        negotiation, so the list can also grow after we send the enable request.
         """
         try:
-            # First check if subtitles are already enabled
             request = json.dumps({
                 "jsonrpc": "2.0",
                 "method": "Player.GetProperties",
                 "params": {
                     "playerid": self._get_player_id(),
-                    "properties": ["subtitleenabled", "currentsubtitle", "subtitles"]
+                    "properties": ["subtitleenabled", "subtitles", "currentsubtitle"]
                 },
                 "id": 1
             })
-            response = xbmc.executeJSONRPC(request)
-            data = json.loads(response)
+            data = json.loads(xbmc.executeJSONRPC(request))
             result = data.get("result", {})
+            if not isinstance(result, dict):
+                return [], False
+            tracks = result.get("subtitles", [])
+            if not isinstance(tracks, list):
+                tracks = []
+            return tracks, bool(result.get("subtitleenabled", False))
+        except Exception as e:
+            log("Could not read subtitle track list: {}".format(str(e)))
+            return [], False
 
-            if isinstance(result, dict) and result.get("subtitleenabled", False):
-                log("Subtitles already enabled.")
-                return
+    def _force_enable_subtitles(self, attempts=3, wait=0.8):
+        """
+        Force-enable subtitles in the player so Kodi downloads/streams them.
+        This ensures the add-on can parse the subtitle data even if the user
+        had subtitles turned off.
 
-            # Enable subtitles — try to select the first available subtitle
-            # Use Player.SetSubtitle with "on" to enable current subtitle
-            request2 = json.dumps({
+        Streaming add-ons often expose zero subtitle tracks while subtitles
+        are disabled; the source only starts delivering one after the enable
+        request, and that delivery is asynchronous. We therefore:
+          1. Enable the currently-active subtitle with the "on" enum (asks the
+             source to start delivering whatever it has), and
+          2. Also explicitly select any exposed track by index with
+             'enable': true (the index+enable form sticks more reliably than
+             a bare "on"), and
+          3. Re-query the exposed track list a few times, since a track can
+             appear after a short delay.
+
+        Returns (enabled, track_count) so callers can tell whether a real
+        subtitle track ended up active or whether the source simply exposes
+        no subtitle for this title.
+        """
+        playerid = self._get_player_id()
+        try:
+            tracks, enabled_now = self._get_subtitle_track_list()
+            if enabled_now:
+                log("Subtitles already enabled ({} track(s) exposed).".format(len(tracks)))
+                return True, len(tracks)
+
+            # Ask the source to start delivering whatever subtitle it has.
+            request_on = json.dumps({
                 "jsonrpc": "2.0",
                 "method": "Player.SetSubtitle",
-                "params": {
-                    "playerid": self._get_player_id(),
-                    "subtitle": "on"
-                },
+                "params": {"playerid": playerid, "subtitle": "on"},
                 "id": 2
             })
-            xbmc.executeJSONRPC(request2)
-            log("Forced subtitles ON via JSON-RPC.")
+            xbmc.executeJSONRPC(request_on)
+            log("Requested subtitles ON ({} track(s) exposed initially).".format(len(tracks)))
 
-            # Wait a moment and verify
-            time.sleep(1)
+            for attempt in range(1, attempts + 1):
+                time.sleep(wait)
 
-            # If still no subtitle, try setting index 0 explicitly
-            response3 = xbmc.executeJSONRPC(request)
-            data3 = json.loads(response3)
-            result3 = data3.get("result", {})
-            if isinstance(result3, dict) and not result3.get("subtitleenabled", False):
-                # Try enabling with explicit index
-                subtitles = result3.get("subtitles", [])
-                if isinstance(subtitles, list) and len(subtitles) > 0:
-                    request4 = json.dumps({
+                # Re-read the exposed list — it may have grown since enabling.
+                tracks, enabled_now = self._get_subtitle_track_list()
+
+                # Explicitly select the currently-exposed track with enable=true.
+                # This is the form that sticks most reliably on streaming.
+                if not enabled_now and tracks:
+                    try:
+                        index = tracks[0].get("index", 0)
+                    except (AttributeError, TypeError):
+                        index = 0
+                    request_index = json.dumps({
                         "jsonrpc": "2.0",
                         "method": "Player.SetSubtitle",
                         "params": {
-                            "playerid": self._get_player_id(),
-                            "subtitle": 0,
-                            "enable": True
+                            "playerid": playerid,
+                            "subtitle": index,
+                            "enable": True,
                         },
                         "id": 3
                     })
-                    xbmc.executeJSONRPC(request4)
-                    log("Forced subtitle index 0 ON.")
-                else:
-                    log("No subtitle streams available yet to enable.")
+                    xbmc.executeJSONRPC(request_index)
+                    log("Selected enabled subtitle index {} (attempt {}).".format(
+                        index, attempt))
+
+                if enabled_now:
+                    log("Subtitles became active after {} attempt(s) ({} track(s)).".format(
+                        attempt, len(tracks)))
+                    return True, len(tracks)
+
+            return False, len(tracks)
 
         except Exception as e:
             log("Error forcing subtitles on: {}".format(str(e)))
+            return False, 0
+
+    def _report_force_failure(self, exposed_tracks):
+        """
+        Emit a diagnostic that distinguishes the two ways forcing subtitles
+        can fail on a streaming source:
+          - a subtitle track IS exposed but wouldn't stay enabled
+            (source/setting quirk), or
+          - the source exposes NO subtitle at all for this title, so there is
+            nothing for Kodi to enable — muting can't work for this stream.
+        """
+        if exposed_tracks > 0:
+            notify_debug(
+                "{} subtitle track(s) exposed but none became active.[CR]"
+                "Playerid={}[CR]The source may delay delivery.".format(
+                    exposed_tracks, self._get_player_id()))
+        else:
+            notify_debug(
+                "No subtitle track exposed by this source.[CR]Playerid={}[CR]"
+                "Muting needs a subtitle the source provides.".format(
+                    self._get_player_id()))
 
     def _hide_subtitles(self):
         """
@@ -778,18 +866,47 @@ class ProfanityFilterPlayer(xbmc.Player):
         """
         Load the scene-skip list for *video_path* and build a controller.
         Returns True if skipping is active for this video.
+
+        Skip data sources, in order:
+          1. Hosted JSON (fetched automatically by the video's title/URL from
+             the configured URL — no files needed on the device). This is what
+             makes scene-skipping work on a Google Streamer / Android TV box.
+          2. Local .skip.txt files on the device (as a fallback / override).
         """
         if not _get_setting_bool("enable_scene_skip", False):
             return False
 
-        skip_file = find_skip_file(video_path)
-        if not skip_file:
-            log("No scene-skip list found for this video.")
-            return False
+        intervals = []
+        source = ""
 
-        intervals = parse_skip_file(skip_file)
+        # 1. Hosted JSON (auto-fetch by title).
+        url = _get_setting("remote_skipdata_url", "").strip()
+        if url:
+            try:
+                log("Fetching remote skip data from {}".format(url))
+                data = get_remote_skip_data(url)
+                # Identify the movie: prefer the metadata title (reliable for
+                # streaming where the URL reveals nothing), else the URL.
+                title_keys = [self._get_playing_title(), _clean_title(video_path)]
+                remote = match_remote_intervals(data, *title_keys)
+                if remote:
+                    intervals = remote
+                    source = "remote:{}".format(url)
+                    log("Found {} remote scene window(s) (keys: {}).".format(
+                        len(remote), [k for k in title_keys if k]))
+            except Exception as e:
+                log("Remote skip-data fetch failed: {}".format(str(e)))
+
+        # 2. Local .skip.txt (fallback / override).
         if not intervals:
-            log("Scene-skip list is empty: {}".format(skip_file))
+            skip_file = find_skip_file(video_path)
+            if skip_file:
+                intervals = parse_skip_file(skip_file)
+                source = skip_file
+                log("Found local scene-skip list: {}".format(skip_file))
+
+        if not intervals:
+            log("No scene-skip data found for this video.")
             return False
 
         # Merge overlapping/adjacent windows once.
@@ -797,7 +914,7 @@ class ProfanityFilterPlayer(xbmc.Player):
 
         lookahead = _get_setting_float("skip_lookahead", 10.0)
         self._skip_controller = SceneSkipController(self, merged, lookahead=lookahead)
-        log("Loaded {} scene window(s) from {}.".format(len(merged), skip_file))
+        log("Loaded {} scene window(s) from {}.".format(len(merged), source))
         notify("{} scene(s) will be skipped.".format(len(merged)))
         return True
 
@@ -807,6 +924,35 @@ class ProfanityFilterPlayer(xbmc.Player):
             return self.getPlayingFile()
         except RuntimeError:
             return ""
+
+    def _get_playing_title(self):
+        """
+        Return a lowercase lookup key for the currently playing item, from the
+        item's metadata (Player.GetItem). This is reliable on streaming add-ons
+        (e.g. ororo / Google Streamer) where the playback URL reveals no title.
+        Falls back to "" if no usable title is exposed.
+        """
+        try:
+            request = json.dumps({
+                "jsonrpc": "2.0",
+                "method": "Player.GetItem",
+                "params": {
+                    "playerid": self._get_player_id(),
+                    "properties": ["title", "label", "originaltitle"]
+                },
+                "id": 1
+            })
+            data = json.loads(xbmc.executeJSONRPC(request))
+            item = data.get("result", {}).get("item", {})
+            if not isinstance(item, dict):
+                return ""
+            for field in ("title", "originaltitle", "label"):
+                value = item.get(field)
+                if isinstance(value, str) and value.strip():
+                    return value.strip().lower()
+        except Exception as e:
+            log("Could not read playing title: {}".format(str(e)))
+        return ""
 
 
 # ---------------------------------------------------------------------------

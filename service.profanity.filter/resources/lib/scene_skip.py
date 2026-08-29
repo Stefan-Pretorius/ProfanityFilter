@@ -19,6 +19,7 @@ the end of a scene window as playback approaches the start, so the viewer
 never sees the flagged moment.
 """
 
+import json
 import os
 import re
 
@@ -88,6 +89,146 @@ def parse_skip_file(filepath):
             return parse_skip_content(fh.read())
     except OSError:
         return []
+
+
+# ---------------------------------------------------------------------------
+# Remote (hosted JSON) skip data
+#
+# Skip timestamps can be published as a single JSON document on a web URL
+# (e.g. the add-on's GitHub Pages site) instead of being copied onto the Kodi
+# device. This is what makes automated scene-skipping work on devices where
+# you can't easily add files, such as a Google Streamer / Android TV box.
+#
+# Hosted document format (skipdata.json):
+#
+#   {
+#     "version": 1,
+#     "skipdata": {
+#       "avatar (2009)": [
+#           {"start": "1:03:45", "end": "1:03:56"},
+#           {"start": "1:20:28", "end": "1:20:42"}
+#       ],
+#       "default": [
+#           {"start": "00:15:00", "end": "00:15:30"}
+#       ]
+#     }
+#   }
+#
+# Keys are lowercase movie titles (same rule as local .skip.txt files) plus an
+# optional "default" key that applies to every video.
+# ---------------------------------------------------------------------------
+
+
+def _ts_to_seconds(value):
+    """Convert a JSON timestamp (seconds, mm:ss, or h:mm:ss) to float."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        return _to_seconds(value)
+    return None
+
+
+def parse_skip_json(content):
+    # type: (str) -> dict
+    """
+    Parse the hosted skip JSON into {title_key: [(start, end), ...]}.
+    Returns {} if the document is missing/empty/malformed.
+    """
+    try:
+        doc = json.loads(content)
+    except (ValueError, TypeError):
+        return {}
+    skipdata = doc.get("skipdata") if isinstance(doc, dict) else None
+    if not isinstance(skipdata, dict):
+        return {}
+    result = {}
+    for title, entries in skipdata.items():
+        if not isinstance(entries, list):
+            continue
+        intervals = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            start = _ts_to_seconds(entry.get("start"))
+            end = _ts_to_seconds(entry.get("end"))
+            if start is not None and end is not None and end > start:
+                intervals.append((start, end))
+        if intervals:
+            result.setdefault(title.strip().lower(), []).extend(intervals)
+    return result
+
+
+def _download_text(url, timeout=15):
+    # type: (str, int) -> str
+    """Fetch *url* and return its text content ("" on failure)."""
+    if _IN_KODI:
+        # Method 1: xbmcvfs handles Kodi's internal URL stack.
+        try:
+            f = xbmcvfs.File(url)
+            try:
+                content = f.read()
+            finally:
+                f.close()
+            if isinstance(content, bytes):
+                content = content.decode("utf-8", errors="replace")
+            if content:
+                return content
+        except Exception:
+            pass
+    # Method 2: Python stdlib urllib.
+    try:
+        import urllib.request
+        req = urllib.request.Request(url)
+        req.add_header("User-Agent", "Kodi/21.0")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            content = resp.read().decode("utf-8", errors="replace")
+        return content
+    except Exception:
+        return ""
+
+
+def get_remote_skip_data(url):
+    # type: (str) -> dict
+    """
+    Fetch and parse the hosted skip JSON from *url*.
+    Returns {title_key: [(start, end), ...]} or {} on any failure.
+    """
+    if not url:
+        return {}
+    try:
+        content = _download_text(url)
+    except Exception:
+        return {}
+    if not content:
+        _log("No remote skip data fetched from {}".format(url))
+        return {}
+    return parse_skip_json(content)
+
+
+def match_remote_intervals(data, *title_keys):
+    # type: (dict, *str) -> list
+    """
+    Extract the skip intervals that apply to a video from hosted *data*.
+    *title_keys* is one or more lowercase lookup keys for the video (e.g. the
+    clean URL title and/or the metadata title from Player.GetItem). Each key
+    that has an entry in *data* contributes its windows; the "default" entry
+    is always added.
+    """
+    intervals = []
+    seen = set()
+    for key in title_keys:
+        if not key:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        exact = data.get(key)
+        if exact:
+            intervals.extend(exact)
+    fallback = data.get("default")
+    if fallback:
+        intervals.extend(fallback)
+    return intervals
 
 
 def get_skip_dir():

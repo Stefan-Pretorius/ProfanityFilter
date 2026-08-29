@@ -12,6 +12,32 @@ appears on the display.
 
 Compatible with Kodi 19 (Matrix), 20 (Nexus) and 21 (Omega).
 
+## Why v1.8.0
+
+- **Automatic scene-skipping data.** Scene-skip timestamps can now be fetched
+  automatically from a hosted JSON file by **movie title** — no files to copy
+  onto the device, which makes scene-skipping usable on a **Google Streamer /
+  Android TV box**. The add-on identifies the video from Kodi's metadata
+  (`Player.GetItem`, so it works even for opaque `plugin://` streaming URLs) or
+  from the file/URL, then downloads its windows from the configured URL
+  (default: the `skipdata.json` published with this repo).
+- You maintain the data centrally in `skipdata.json`; GitHub Pages serves it and
+  the add-on picks up updates automatically.
+- Local `.skip.txt` files still work as before and are used as a fallback.
+
+## Why v1.7.1
+
+- **Streaming subtitles are now forced on more reliably.** Enabling an external
+  subtitle (e.g. via Google Streamer / ororo) is asynchronous — the source only
+  starts delivering the subtitle after the request, sometimes after a delay. The
+  add-on now re-requests it inside the retry loop and re-selects the exposed
+  track by index until it becomes active, instead of giving up after one try.
+  This fixes the "tried to force subtitles on but none became active" message.
+- **Clearer diagnostics when no subtitle exists.** The on-screen diagnostic now
+  tells you apart the two failure cases: a track existed but wouldn't stay
+  enabled, versus the source simply providing **no subtitle at all** for that
+  video (in which case muting can't work for that stream).
+
 ## Why v1.7.0
 
 - **New: scene skipping.** Beyond muting profanity, the add-on can now *jump
@@ -85,7 +111,13 @@ installs the update itself (or you can press **Check for updates** manually).
    diagnostics**.
 2. Play the video. If the filter still fails, a yellow "PF Diagnose" bubble
    shows the exact failing stage, e.g.:
-   - `...but none became active` → subtitles aren't switching on at all
+   - `...none became active` → forcing subtitles on didn't engage a track; the
+     add-on now retries this automatically, so check whether this keeps
+     happening on this specific video/source
+   - `No subtitle track exposed by this source` → the streaming source provides
+     **no subtitle at all** for this video, so there is nothing to scan and mute
+   - `...track(s) exposed but none became active` → the source has a subtitle
+     but it wouldn't switch on
    - `no URL found (JSON-RPC + log scan)` → no subtitle URL detected
    - `URL found but download failed` → the subtitle was found but couldn't be
      fetched
@@ -117,29 +149,65 @@ moments, intense violence, mature content) rather than just muting words.
 
 1. Turn it on: **Add-ons → Profanity Filter → Configure → Scene skipping →
    Enable scene skipping**.
-2. Create a skip list. In Kodi's file manager, go to
-   `special://profile/addon_data/service.profanity.filter/skiplists/` and add a
-   file **named after the movie** (e.g. `Avatar (2009).skip.txt`) — or
-   `global.skip.txt` to apply to everything.
-3. In that file, put one scene per line, `START  END`:
 
-   ```
-   00:05:30  00:06:15    # skip 5:30 to 6:15
-   1:23:45   1:24:30     # skip near the end
-   42.0      45.5        # plain seconds work too
-   ```
+### Automatic (hosted JSON — no files on the TV)
 
-   `#` starts a comment. Matching is on the video's file name and is
-   case-insensitive. A bundled example is at
-   `service.profanity.filter/resources/skiplists/global.skip.txt.example`.
+This is the recommended way on a Google Streamer / Android TV box where you
+can't easily add files. The add-on **identifies the movie** (from Kodi's
+metadata, or the file/URL for local content) and downloads its scene timings
+from a single hosted JSON file — you edit it in the repo, GitHub Pages serves
+it, and every device pulls it automatically.
+
+- The URL is set in **Scene skipping → Hosted skip-data URL** and defaults to
+  the one published with this repo (`skipdata.json` on the Pages site).
+- Edit `/skipdata.json` in this repository. Keys are **lowercase movie
+  titles**, each holding a list of `{ "start", "end" }` scene windows (times as
+  `"h:mm:ss"`, `"m:ss"`, or plain seconds). An optional `"default"` key applies
+  to every video:
+
+  ```json
+  {
+    "version": 1,
+    "skipdata": {
+      "avatar (2009)": [
+        { "start": "1:03:45", "end": "1:03:56" },
+        { "start": "1:20:28", "end": "1:20:42" }
+      ],
+      "default": [
+        { "start": "00:15:00", "end": "00:15:30" }
+      ]
+    }
+  }
+  ```
+
+  The `skipdata.json` file is copied to the Pages site on every release, so the
+  add-on always sees your latest update — no add-on reinstall needed.
+
+### Local files (alternative)
+
+If you prefer to keep the list on the device instead: in Kodi's file manager,
+go to `special://profile/addon_data/service.profanity.filter/skiplists/` and add
+a file **named after the movie** (e.g. `Avatar (2009).skip.txt`) — or
+`global.skip.txt` to apply to everything. In that file, put one scene per line,
+`START  END`:
+
+```
+00:05:30  00:06:15    # skip 5:30 to 6:15
+1:23:45   1:24:30     # skip near the end
+42.0      45.5        # plain seconds work too
+```
+
+`#` starts a comment. Matching is on the video's title/file name and is
+case-insensitive. A bundled example is at
+`service.profanity.filter/resources/skiplists/global.skip.txt.example`.
+
+### How it behaves
 
 When playback gets within the **Skip-start lookahead** (default 10 s) of a
 flagged scene, the add-on jumps to the end of that window. This happens
 independently of profanity muting and works even when no subtitle is found.
 
-Useful when hiding from scary/mature content for kids. If you'd rather leave
-this to a crowd-sourced service, the skip-list format is deliberately simple so
-it can be populated from one later.
+Useful when hiding from scary/mature content for kids.
 
 ## Releasing a new version
 

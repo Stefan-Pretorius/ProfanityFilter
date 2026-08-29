@@ -113,6 +113,14 @@ def main():
         shutil.rmtree(DIST)
     os.makedirs(PAGES)
 
+    # Hosted skip-data document (copied so GitHub Pages serves it at the
+    # repo root, e.g. https://host.github.io/User/Repo/skipdata.json).
+    # The add-on fetches this automatically by movie title at play time.
+    skipdata_src = os.path.join(ROOT, "skipdata.json")
+    if os.path.isfile(skipdata_src):
+        shutil.copy2(skipdata_src, os.path.join(PAGES, "skipdata.json"))
+        print("  ->", os.path.join(PAGES, "skipdata.json"))
+
     # 1. Add-on zip (release asset + repository payload)
     addon_zip = os.path.join(DIST, "{id}-{ver}.zip".format(id=addon_id, ver=version))
     zip_dir(ADDON_DIR, addon_zip)

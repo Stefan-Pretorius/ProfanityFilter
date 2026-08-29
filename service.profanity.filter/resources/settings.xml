@@ -11,6 +11,7 @@
     <category label="Scene skipping">
         <setting id="enable_scene_skip" type="bool" label="Enable scene skipping" default="false"/>
         <setting id="skip_lookahead" type="slider" label="Skip-start lookahead (seconds)" default="10" range="0.0,1.0,30.0" option="float"/>
+        <setting id="remote_skipdata_url" type="text" label="Hosted skip-data URL (fetched automatically by movie)" default="https://stefan-pretorius.github.io/ProfanityFilter/skipdata.json"/>
     </category>
     <category label="Notifications">
         <setting id="show_notifications" type="bool" label="Show on-screen notifications" default="true"/>
