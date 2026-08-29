@@ -12,6 +12,35 @@ appears on the display.
 
 Compatible with Kodi 19 (Matrix), 20 (Nexus) and 21 (Omega).
 
+## Why v1.7.0
+
+- **New: scene skipping.** Beyond muting profanity, the add-on can now *jump
+  past* whole scenes you want to avoid — scary, intense or mature moments.
+  Scene windows come from simple, offline skip lists you edit yourself (no
+  subscription, no external service, nothing to look up at play time).
+- Skip lists are matched by movie name and live in
+  `special://profile/addon_data/service.profanity.filter/skiplists/`. See
+  [Scene skipping](#scene-skipping) below.
+- Scene skipping works even when a subtitle can't be found, so it's independent
+  of the profanity filter.
+
+## Why v1.6.1
+
+- **Fixes streaming subtitle discovery** (ororo.tv etc.). Subtitle URLs that
+  carry a signed query string (e.g. `...vtt?X-Amz-Signature=...`) are now kept
+  whole, so the download no longer loses its auth token and fails. The add-on
+  also rescans the full Kodi log when the subtitle URL falls outside the most
+  recent portion.
+- **Diagnose without the log.** A new **"Show detailed failure diagnostics"**
+  setting pops up exactly which stage failed (player id, whether subtitles
+  became active, URL/download/parse results) so you can report the issue
+  straight from the screen.
+- **Subtitles already on? Capture, then hide.** If you keep subtitles switched
+  on by default, the add-on now just reads the subtitle that's already showing,
+  then hides the display — no fragile "force subtitles on" needed. If subtitles
+  are off, it still briefly enables them for streaming sources and restores
+  your preference afterwards.
+
 ## Why v1.6.0
 
 - **No subtitles on screen.** The filter works with subtitles switched off.
@@ -50,6 +79,21 @@ automatically. Whenever a new version is tagged in this repository, the
 workflow builds and publishes it to the same URL — Kodi downloads and
 installs the update itself (or you can press **Check for updates** manually).
 
+## Troubleshooting: streaming content shows "No subtitle found"
+
+1. Enable **Add-ons → Profanity Filter → Configure → Show detailed failure
+   diagnostics**.
+2. Play the video. If the filter still fails, a yellow "PF Diagnose" bubble
+   shows the exact failing stage, e.g.:
+   - `...but none became active` → subtitles aren't switching on at all
+   - `no URL found (JSON-RPC + log scan)` → no subtitle URL detected
+   - `URL found but download failed` → the subtitle was found but couldn't be
+     fetched
+   - `...parsed to 0 cues` → the subtitle downloaded but couldn't be read
+3. If the bubble is cut off, enable Kodi's debug logging (**Settings → System →
+   Logging → Enable debug logging**) and look for lines starting with
+   `[ProfanityFilter]` in `kodi.log` (`special://logpath/`).
+
 ## Manual install (alternative)
 
 Grab `service.profanity.filter-<version>.zip` from the
@@ -65,6 +109,37 @@ slurs) that are disabled by default — uncomment lines to enable them.
 - Matching is **case-insensitive** and **whole-word** (`ass` never matches
   `class`, `pass` or `assessment`).
 - `*` is a wildcard for a **single** character: `sh*t` → `shit`, `shut`, `shat`.
+
+## Scene skipping
+
+The add-on can also **jump past whole scenes** you don't want shown (scary
+moments, intense violence, mature content) rather than just muting words.
+
+1. Turn it on: **Add-ons → Profanity Filter → Configure → Scene skipping →
+   Enable scene skipping**.
+2. Create a skip list. In Kodi's file manager, go to
+   `special://profile/addon_data/service.profanity.filter/skiplists/` and add a
+   file **named after the movie** (e.g. `Avatar (2009).skip.txt`) — or
+   `global.skip.txt` to apply to everything.
+3. In that file, put one scene per line, `START  END`:
+
+   ```
+   00:05:30  00:06:15    # skip 5:30 to 6:15
+   1:23:45   1:24:30     # skip near the end
+   42.0      45.5        # plain seconds work too
+   ```
+
+   `#` starts a comment. Matching is on the video's file name and is
+   case-insensitive. A bundled example is at
+   `service.profanity.filter/resources/skiplists/global.skip.txt.example`.
+
+When playback gets within the **Skip-start lookahead** (default 10 s) of a
+flagged scene, the add-on jumps to the end of that window. This happens
+independently of profanity muting and works even when no subtitle is found.
+
+Useful when hiding from scary/mature content for kids. If you'd rather leave
+this to a crowd-sourced service, the skip-list format is deliberately simple so
+it can be populated from one later.
 
 ## Releasing a new version
 

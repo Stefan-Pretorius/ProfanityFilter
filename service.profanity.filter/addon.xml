@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.profanity.filter" name="Profanity Filter" version="1.6.0" provider-name="Stefan Pretorius">
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.7.0" provider-name="Stefan Pretorius">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -10,7 +10,15 @@
     <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
     <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Works with local files and streaming add-ons such as ororo.tv.</description>
     <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
-    <news>1.6.0:
+    <news>1.7.0:
+- New: scene skipping. When enabled, the add-on jumps past flagged scenes (scary, intense, mature) instead of only muting. Scene windows are read from simple offline skip lists you edit yourself — no subscription or external service needed.
+- Skip lists live in special://profile/addon_data/service.profanity.filter/skiplists/ and match by movie name (e.g. "Avatar (2009).skip.txt") or global.skip.txt for every video. Format is one "start end" per line (mm:ss / h:mm:ss / plain seconds). A bundled example is included.
+- New settings: "Enable scene skipping" and "Skip-start lookahead (seconds)".
+1.6.1:
+- Fix streaming subtitle discovery: subtitle URLs with signed query strings (e.g. ororo WebVTT tokens) are now kept intact so downloads no longer fail with auth errors.
+- Fall back to scanning the full Kodi log when the subtitle URL falls outside the recent log tail.
+- Adds a "Show detailed failure diagnostics" setting that shows the exact failing stage on screen (player id, whether subtitles became active, URL/download/parse results) so issues are easy to report without reading Kodi's log.
+1.6.0:
 - Subtitles are no longer shown on screen. The filter works with subtitles switched off: local files are read from disk directly (never displayed), and streaming subtitles are only enabled long enough to capture the timing data, then hidden again.
 - The "Hide subtitles after scanning" setting has been removed — profanity text is always kept off the screen.
 1.5.0:

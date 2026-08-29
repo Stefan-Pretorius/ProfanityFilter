@@ -1,0 +1,17 @@
+# Profanity Filter — Scene Skip List
+# ===================================
+# Rename this file to "global.skip.txt" (no ".example" suffix) and it will
+# apply to EVERY video you watch. Or name it after a single movie, e.g.
+#   Avatar (2009).skip.txt
+# to skip scenes only in that title (match is on the video file name).
+#
+# The add-on reads these files from:
+#   special://profile/addon_data/service.profanity.filter/skiplists/
+#
+# Format: one scene per line,  START  END   (times can be mm:ss or h:mm:ss).
+# Lines starting with '#' are ignored. The player jumps PAST each window.
+#
+# Examples:
+#   00:05:30  00:06:15    # skip 5:30 to 6:15
+#   1:23:45   1:24:30     # skip near the end
+#   42.0      45.5        # plain seconds also work

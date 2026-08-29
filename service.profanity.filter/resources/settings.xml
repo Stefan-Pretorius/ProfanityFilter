@@ -8,7 +8,12 @@
         <setting id="subtitle_wait" type="slider" label="Subtitle scan delay (seconds)" default="10" range="1,1,30" option="int"/>
         <setting id="subtitle_retries" type="slider" label="Subtitle search retries" default="10" range="1,1,20" option="int"/>
     </category>
+    <category label="Scene skipping">
+        <setting id="enable_scene_skip" type="bool" label="Enable scene skipping" default="false"/>
+        <setting id="skip_lookahead" type="slider" label="Skip-start lookahead (seconds)" default="10" range="0.0,1.0,30.0" option="float"/>
+    </category>
     <category label="Notifications">
         <setting id="show_notifications" type="bool" label="Show on-screen notifications" default="true"/>
+        <setting id="show_diagnostics" type="bool" label="Show detailed failure diagnostics" default="false"/>
     </category>
 </settings>
