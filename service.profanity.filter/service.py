@@ -56,6 +56,11 @@ LOG_TAG = "[ProfanityFilter]"
 # How often (seconds) to poll the playback position for mute decisions
 POLL_INTERVAL = 0.15  # 150ms
 
+# How often (seconds) to re-check and re-hide subtitles while filtering, so a
+# streaming add-on (e.g. ororo) that keeps re-enabling them can't put
+# profanity back on screen.
+SUPPRESS_INTERVAL = 1.0
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -143,6 +148,7 @@ class ProfanityFilterPlayer(xbmc.Player):
         self._processing_thread = None
         self._mute_thread = None
         self._skip_thread = None
+        self._suppress_thread = None
         self._stop_muting = threading.Event()
         self._lock = threading.Lock()
 
@@ -373,6 +379,10 @@ class ProfanityFilterPlayer(xbmc.Player):
             if matched or subs_forced:
                 self._hide_subtitles()
                 log("Subtitles hidden from display.")
+                # Some streaming add-ons (e.g. ororo) re-enable subtitles on
+                # their own shortly after we hide them. Keep them suppressed
+                # for the whole session so profanity stays off screen.
+                self._start_subtitle_suppression()
 
     def _get_player_id(self, default=1):
         """
@@ -790,6 +800,42 @@ class ProfanityFilterPlayer(xbmc.Player):
             log("Subtitle display turned OFF.")
         except Exception as e:
             log("Error hiding subtitles: {}".format(str(e)))
+
+    def _start_subtitle_suppression(self):
+        """Start a background thread that keeps subtitles hidden for the rest
+        of this playback session. Handles streaming add-ons such as ororo that
+        re-enable subtitles after they are turned off, so profanity text never
+        reappears on screen."""
+        if not self._suppress_thread or not self._suppress_thread.is_alive():
+            self._suppress_thread = threading.Thread(
+                target=self._subtitle_suppression_loop)
+            self._suppress_thread.daemon = True
+            self._suppress_thread.start()
+
+    def _subtitle_suppression_loop(self):
+        """
+        Poll subtitle state and re-hide whenever subtitles come back on.
+        Runs until playback stops or the stop event is set.
+        """
+        suppressed_once = True
+        while not self._stop_muting.is_set() and not self._monitor.abortRequested():
+            try:
+                if not self.isPlaying():
+                    break
+                if self._subtitles_enabled():
+                    self._hide_subtitles()
+                    if suppressed_once:
+                        log("Subtitles re-enabled by source — hiding again.")
+                        suppressed_once = False
+            except RuntimeError:
+                break
+            except Exception as e:
+                log("Subtitle suppression error: {}".format(str(e)))
+                break
+
+            time.sleep(SUPPRESS_INTERVAL)
+
+        log("Subtitle suppression ended.")
 
     # ------------------------------------------------------------------
     # Mute loop

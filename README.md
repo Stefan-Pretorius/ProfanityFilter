@@ -25,6 +25,15 @@ Compatible with Kodi 19 (Matrix), 20 (Nexus) and 21 (Omega).
   the add-on picks up updates automatically.
 - Local `.skip.txt` files still work as before and are used as a fallback.
 
+## Why v1.8.1
+
+- **Subtitles no longer reappear during filtering.** On streaming add-ons where
+  subtitles are already open by default (e.g. **ororo on a Google Streamer**),
+  the add-on reads the subtitle, hides the text, then keeps watching: some
+  sources re-enable subtitles on their own right after being turned off. The
+  add-on now re-hides subtitles every second for the whole session, so profanity
+  never flickers back onto the screen.
+
 ## Why v1.7.1
 
 - **Streaming subtitles are now forced on more reliably.** Enabling an external

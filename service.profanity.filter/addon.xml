@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.profanity.filter" name="Profanity Filter" version="1.8.0" provider-name="Stefan Pretorius">
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.8.1" provider-name="Stefan Pretorius">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -10,7 +10,9 @@
     <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
     <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Works with local files and streaming add-ons such as ororo.tv.</description>
     <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
-    <news>1.8.0:
+    <news>1.8.1:
+- Fix subtitles re-appearing during filtering on streaming add-ons (e.g. ororo on a Google Streamer): after the add-on reads the subtitle data and hides the text, some sources re-enable subtitles on their own. The add-on now keeps watching the subtitle state for the rest of the session and re-hides them every second, so profanity never flickers back onto the screen.
+1.8.0:
 - Automatic scene-skipping data: the add-on can now fetch scene-skip timestamps by movie from a hosted JSON file (no files needed on the device — works on a Google Streamer / Android TV box). The video is identified from Kodi's metadata (Player.GetItem) for streaming, or from the file/URL for local content. Set the URL in Settings (defaults to the repo's published skipdata.json) and add entries keyed by movie title, plus an optional "default" entry.
 1.7.1:
 - Fix "tried to force subtitles on but none became active" on streaming sources (e.g. Google Streamer + ororo): enabling an external subtitle is asynchronous, so the add-on now re-requests it inside the retry loop and re-selects the exposed track by index with enable=true until it becomes active, instead of giving up after a single attempt.
