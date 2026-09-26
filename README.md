@@ -59,25 +59,31 @@ automatically. Whenever a new version is tagged in this repository, the
 workflow builds and publishes it to the same URL — Kodi downloads and
 installs the update itself (or you can press **Check for updates** manually).
 
-## Troubleshooting: the filter doesn't seem to do anything
+## Seeing what the add-on is doing
 
-1. Enable **Add-ons → Profanity Filter → Configure → Show detailed failure
-   diagnostics**.
-2. Play the video. If the filter still fails, a yellow "PF Diagnose" bubble
-   shows the exact failing stage, e.g.:
-   - `No subtitle track exposed by this source` → the source provides **no
-     subtitle at all** for this video, so there is nothing to scan and mute
-   - `...track(s) exposed but none became active` → the source has a subtitle
-     but it wouldn't switch on
-   - `no URL found (JSON-RPC + log scan)` → no subtitle URL detected
-   - `URL found but download failed` → the subtitle was found but couldn't be
-     fetched
-   - `...parsed to 0 cues` → the subtitle downloaded but couldn't be read
-3. Check the **on-screen notifications** first. The add-on reports each step:
-   *N word(s) will be muted*, *No bad words found*, *No subtitle found*.
-4. If the bubble is cut off, enable Kodi's debug logging (**Settings → System →
-   Logging → Enable debug logging**) and look for lines starting with
-   `[ProfanityFilter]` in `kodi.log` (`special://logpath/`).
+Every video produces a short report on screen. It stays up until you press OK,
+so it cannot scroll past unseen, and it ends in one of:
+
+- `Result: FILTER ACTIVE - subtitles hidden` — the filter is working
+- `Result: CLEAN` — subtitle read and hidden, no profanity in it
+- `Result: NO SUBTITLE` — the source provides no subtitle, so there is nothing
+  to scan (this is the one case where muting is not possible)
+- `Result: SKIPPED (not a video)` — e.g. music
+- `Result: FAILED` — something went wrong; the last line says what
+
+Controls live in **Add-ons → My add-ons → Profanity Filter → Configure**:
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| Troubleshooting → Show a report on screen for every video | on | The report itself |
+| Troubleshooting → Report stays on screen until I press OK | on | A bubble alone vanishes before you can read it on a TV |
+| Notifications → Show short notifications too | on | Brief status lines |
+
+Turn the report off once things are working.
+
+The same report is also written to `report.txt` in the add-on's data folder
+(`special://profile/addon_data/service.profanity.filter/report.txt`), which
+means you do not have to pull `kodi.log` off a device you cannot easily reach.
 
 ### Tuning
 

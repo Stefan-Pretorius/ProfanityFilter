@@ -16,6 +16,9 @@ What this service does, in order, for every video that starts playing:
 The subtitle is used purely as a *data source* for timing. Once it has been
 read, the display is switched off and stays off for the rest of the session.
 
+Every run ends in an on-screen report, so it is always visible whether the
+filter engaged or why it did not.
+
 Compatible with Kodi 19 (Matrix), 20 (Nexus), and 21 (Omega).
 """
 
@@ -38,6 +41,8 @@ import xbmcvfs
 _ADDON = xbmcaddon.Addon()
 _ADDON_PATH = _ADDON.getAddonInfo("path")
 _LIB_PATH = os.path.join(_ADDON_PATH, "resources", "lib")
+_LOG_PATH = xbmcvfs.translatePath(
+    "special://profile/addon_data/service.profanity.filter/report.txt")
 
 if _LIB_PATH not in sys.path:
     sys.path.insert(0, _LIB_PATH)
@@ -64,6 +69,10 @@ SUBS_CHECK_INTERVAL = 2.0
 
 # Maximum amount of the Kodi log to read when hunting for a subtitle URL.
 LOG_SCAN_BYTES = 400000
+
+# Longest report we will try to show in a dialog before writing the rest to
+# the log file. Keeps the on-screen text readable on a TV.
+REPORT_MAX_LINES = 14
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +118,13 @@ def _get_setting_bool(key, default):
         return default
 
 
+def _kodi_version():
+    try:
+        return xbmc.getInfoLabel("System.BuildVersion") or "unknown"
+    except Exception:
+        return "unknown"
+
+
 def notify(message):
     """Show a brief Kodi notification bubble (if enabled in settings)."""
     if _get_setting_bool("show_notifications", True):
@@ -120,18 +136,22 @@ def notify(message):
         )
 
 
-def notify_debug(message):
-    """Show a diagnostics bubble that includes the specific failure stage.
-    Only shown when the 'show_diagnostics' setting is enabled - used to
-    troubleshoot subtitle discovery without needing to read Kodi's log."""
-    if _get_setting_bool("show_diagnostics", False):
-        xbmcgui.Dialog().notification(
-            "PF Diagnose",
-            message,
-            xbmcgui.NOTIFICATION_WARNING,
-            5000,
-        )
-    log(message)
+class Report(object):
+    """
+    Collects what happened during one playback so it can be shown on screen
+    and written to a file. The add-on is often used on a box where getting at
+    Kodi's log is impractical, so this is the primary way to find out why
+    filtering did or did not happen.
+    """
+
+    def __init__(self):
+        self.lines = []
+
+    def add(self, line):
+        self.lines.append(str(line))
+
+    def text(self):
+        return "\n".join(self.lines)
 
 
 # ---------------------------------------------------------------------------
@@ -161,13 +181,18 @@ class ProfanityFilterPlayer(xbmc.Player):
     # ------------------------------------------------------------------
     # Kodi callbacks
     # ------------------------------------------------------------------
+    #
+    # These run on Kodi's own thread. They must stay free of JSON-RPC and GUI
+    # work: re-entering the player from inside its own callback is unsafe, and
+    # it is what stopped this add-on from working at all in v1.9.0. All of that
+    # happens in the worker thread instead.
 
     def onPlayBackStarted(self):
         self._stop_current_muting()
-        self._log_offset = _log_size()
-        if not self._is_video_playing():
-            log("Not a video item - ignoring.", xbmc.LOGDEBUG)
-            return
+        try:
+            self._log_offset = _log_size()
+        except Exception:
+            self._log_offset = 0
         log("Playback started - scheduling subtitle scan.")
         generation, stop = self._begin_session()
         self._start_processing(generation, stop)
@@ -216,8 +241,12 @@ class ProfanityFilterPlayer(xbmc.Player):
         if stop_event is not None:
             stop_event.set()
         if self._mute_controller:
-            self._mute_controller.cleanup()
+            # Unmuting talks to Kodi, so do it off the callback thread.
+            controller = self._mute_controller
             self._mute_controller = None
+            unmuter = threading.Thread(target=controller.cleanup)
+            unmuter.daemon = True
+            unmuter.start()
 
     def _is_stale(self, stop_event, generation=None):
         """
@@ -247,16 +276,33 @@ class ProfanityFilterPlayer(xbmc.Player):
         """
         Core logic: get the subtitle -> hide it -> match bad words -> mute.
 
-        The subtitle is always hidden once it has been read, whether or not any
-        bad words were found, so profanity (or any subtitle text) never stays on
-        screen. Muting starts immediately afterwards and runs for the whole
-        video.
+        Whatever happens, a report is shown on screen at the end so the outcome
+        is never in doubt.
         """
+        report = Report()
+        report.add("Version {}".format(_ADDON.getAddonInfo("version")))
+        report.add("Kodi {}".format(_kodi_version()))
+
+        try:
+            self._process(report, generation, stop_event)
+        except Exception as e:
+            log("Unexpected error: {}".format(str(e)), xbmc.LOGERROR)
+            report.add("Unexpected error: {}".format(str(e)[:110]))
+        finally:
+            self._show_report(report)
+
+    def _process(self, report, generation, stop_event):
+        """The actual scan. Fills *report* as it goes."""
         subtitle_wait = _get_setting_int("subtitle_wait", 10)
         subtitle_retries = _get_setting_int("subtitle_retries", 10)
         retry_interval = 3  # seconds between retries
 
-        # Wait a few seconds for the player to initialise
+        # Tell the user straight away that the add-on is alive and working,
+        # because "nothing happened" is otherwise indistinguishable from
+        # "the add-on never ran".
+        notify("Reading subtitles, starting filter...")
+
+        # Wait a few seconds for the player to initialise and register itself.
         log("Waiting 3s for player to initialise...")
         for _ in range(3):
             if self._is_stale(stop_event, generation):
@@ -267,36 +313,58 @@ class ProfanityFilterPlayer(xbmc.Player):
             log("No longer playing - aborting scan.", xbmc.LOGDEBUG)
             return
 
-        video_path = self._get_video_path()
-        if not video_path:
-            log("Could not determine video path.", xbmc.LOGWARNING)
+        # Only now is it safe to ask Kodi what is playing. A video player is not
+        # necessarily registered at the instant playback starts, so retry
+        # before concluding this is not a video.
+        if not self._wait_for_video_player(6, stop_event, generation):
+            report.add("No video player active - nothing to filter (music?)")
+            report.add("Result: SKIPPED (not a video)")
+            log("No active video player - ignoring this item.", xbmc.LOGWARNING)
             return
 
-        log("Processing: {}".format(video_path[:120]))
+        player_id = self._get_player_id()
+        video_path = self._get_video_path()
+        report.add("Video player id {}".format(player_id))
+        if not video_path:
+            report.add("Could not read the playing file path")
+            report.add("Result: FAILED")
+            log("Could not determine video path.", xbmc.LOGWARNING)
+            return
+        report.add("Source {}".format(
+            "streaming" if video_path.startswith(
+                ("http://", "https://", "plugin://")) else "local file"))
 
         # --- Load word list ---
         word_list = load_word_list(WORD_LIST_PATH)
         if not word_list:
+            report.add("Word list filter.txt is empty")
+            report.add("Result: FAILED")
             log("Bad-word list is empty - nothing to filter.", xbmc.LOGWARNING)
             notify("Bad-word list is empty. Add words to filter.txt.")
             return
-
         patterns = build_patterns(word_list)
-        log("Loaded {} filter pattern(s).".format(len(patterns)))
+        report.add("Word list: {} pattern(s)".format(len(patterns)))
 
         # --- Make the source hand us its subtitle ---
         # This is the step that makes streaming add-ons (ororo.tv) work: the
         # subtitle is only requested/opened once subtitles are switched on, so
         # we always ask for it, then give the source time to deliver it.
         enabled, exposed_tracks = self._ensure_subtitles_enabled()
+        report.add("Subtitles: {}, {} track(s) exposed".format(
+            "on" if enabled else "not on", exposed_tracks))
+
         if not enabled and exposed_tracks == 0:
-            log("Source exposed no subtitle track for this video.", xbmc.LOGWARNING)
-            self._report_force_failure(exposed_tracks)
+            report.add("The source offers NO subtitle for this video.")
+            report.add("Muting needs a subtitle the source provides.")
+            report.add("Result: NO SUBTITLE")
+            log("Source exposed no subtitle track for this video.",
+                xbmc.LOGWARNING)
             notify("No subtitle track available. Filter inactive for this video.")
             return
 
         if subtitle_wait:
             log("Waiting {}s for subtitle to load...".format(subtitle_wait))
+            report.add("Waiting {}s for the subtitle".format(subtitle_wait))
             self._wait_for_subtitle(subtitle_wait, stop_event, generation)
             if self._is_stale(stop_event, generation) or not self.isPlaying():
                 return
@@ -337,9 +405,15 @@ class ProfanityFilterPlayer(xbmc.Player):
         if not cues:
             log("No subtitle found or parsed - profanity filter inactive.",
                 xbmc.LOGWARNING)
-            reason = " | ".join(dict.fromkeys(last_reason))[:200]
-            notify_debug("Subtitle not found.[CR]Player:{}[CR]{}".format(
-                self._get_player_id(), reason))
+            # De-duplicate, but keep the order and cap the length so the
+            # on-screen report stays readable.
+            seen = []
+            for reason in last_reason:
+                if reason not in seen:
+                    seen.append(reason)
+            for reason in seen[-3:]:
+                report.add("  " + reason[:70])
+            report.add("Result: NO SUBTITLE (filter inactive)")
             notify("No subtitle found. Filter inactive for this video.")
             # We asked the source for subtitles, so switch the display back off
             # and keep it off, rather than leaving the source's subtitle on
@@ -350,6 +424,7 @@ class ProfanityFilterPlayer(xbmc.Player):
             return
 
         log("Parsed {} subtitle cue(s).".format(len(cues)))
+        report.add("Subtitle read: {} cue(s)".format(len(cues)))
 
         # --- Read done: hide the subtitle text from the screen ---
         # Everything below only needs the parsed timings, never the display.
@@ -361,9 +436,11 @@ class ProfanityFilterPlayer(xbmc.Player):
         # --- Match bad words ---
         matched = find_matching_cues(cues, patterns)
         log("Found {} cue(s) containing bad words.".format(len(matched)))
+        report.add("Profanity: {} of those cue(s) matched".format(len(matched)))
 
         if not matched:
             log("No bad words found in subtitles.")
+            report.add("Result: CLEAN (subtitles hidden, nothing to mute)")
             notify("No bad words found. Subtitles hidden, nothing to mute.")
             # Nothing to mute, but still keep the subtitles hidden for the
             # whole video.
@@ -379,11 +456,73 @@ class ProfanityFilterPlayer(xbmc.Player):
 
         log("Created {} mute interval(s). Starting real-time monitor.".format(
             len(merged)))
+        report.add("Mute windows: {} ({}s before, {}s after)".format(
+            len(merged), pre_buf, post_buf))
+        report.add("Result: FILTER ACTIVE - subtitles hidden")
         notify("{} word(s) will be muted.".format(len(matched)))
 
         # --- Start the real-time filter loop ---
         self._mute_controller = MuteController(merged)
         self._start_filter_loop(stop_event, generation)
+
+    def _show_report(self, report):
+        """
+        Put the outcome on screen and in the log.
+
+        The whole report is always written to the add-on's own report.txt so
+        it survives, and the first few lines are shown on screen. When the
+        report is a dialog the user has to acknowledge, it cannot be missed
+        while watching a video.
+        """
+        text = report.text()
+        log("---- report ----\n{}".format(text))
+
+        try:
+            directory = os.path.dirname(_LOG_PATH)
+            if directory and not os.path.isdir(directory):
+                os.makedirs(directory)
+            with open(_LOG_PATH, "w", encoding="utf-8") as fh:
+                fh.write(text)
+                fh.write("\n")
+        except OSError as e:
+            log("Could not write report file: {}".format(str(e)))
+
+        if not _get_setting_bool("show_report", True):
+            return
+
+        lines = report.lines
+        if len(lines) > REPORT_MAX_LINES:
+            extra = len(lines) - REPORT_MAX_LINES
+            lines = lines[:REPORT_MAX_LINES - 1] + ["... +{} line(s), see report.txt".format(extra)]
+        text = "\n".join(lines)
+
+        try:
+            if _get_setting_bool("report_modal", True):
+                # Stays on screen until dismissed - a timed bubble disappears
+                # long before you can read it on a TV.
+                xbmcgui.Dialog().ok("Profanity Filter", text)
+            else:
+                xbmcgui.Dialog().notification(
+                    "Profanity Filter", text,
+                    xbmcgui.NOTIFICATION_WARNING, 10000)
+        except Exception as e:
+            log("Could not show report: {}".format(str(e)))
+
+    def _wait_for_video_player(self, seconds, stop_event, generation):
+        """
+        Wait for a video player to register itself.
+
+        Playback can start before Kodi lists the player, so a single immediate
+        check is not enough - that is what made the add-on skip videos while
+        still appearing to run. Returns True once a video player is active.
+        """
+        for _ in range(seconds):
+            if self._is_stale(stop_event, generation):
+                return False
+            if self._is_video_playing():
+                return True
+            time.sleep(1)
+        return self._is_video_playing()
 
     def _wait_for_subtitle(self, seconds, stop_event, generation):
         """
@@ -411,17 +550,17 @@ class ProfanityFilterPlayer(xbmc.Player):
         """
         url = self._find_subtitle_url()
         if not url:
-            return None, "no URL found (JSON-RPC + log scan)"
+            return None, "no subtitle URL found (JSON-RPC and log scan)"
 
         content = self._download_subtitle(url)
         if not content:
-            return None, "URL found but download failed/empty: {}".format(url[:100])
+            return None, "subtitle URL found but download failed"
 
         fmt = "vtt" if ".vtt" in url.lower() else "srt"
         cues = parse_subtitle_content(content, format_hint=fmt)
         if cues:
-            return cues, "ok ({} cues from {})".format(len(cues), url[:60])
-        return None, "URL content parsed to 0 cues: {}".format(url[:100])
+            return cues, "read {} cues from the subtitle URL".format(len(cues))
+        return None, "subtitle URL downloaded but parsed to 0 cues"
 
     def _try_get_subtitle_from_file(self, video_path):
         """
@@ -431,11 +570,11 @@ class ProfanityFilterPlayer(xbmc.Player):
         from subtitle_locator import find_subtitle_for_video
         subtitle_path = find_subtitle_for_video(video_path)
         if not subtitle_path:
-            return None, "no subtitle file on disk"
+            return None, "no subtitle file found on the device"
         cues = parse_subtitle_file(subtitle_path)
         if cues:
-            return cues, "ok ({} cues from {})".format(len(cues), subtitle_path)
-        return None, "disk file parsed to 0 cues: {}".format(subtitle_path)
+            return cues, "read {} cues from a local file".format(len(cues))
+        return None, "local subtitle file parsed to 0 cues"
 
     def _find_subtitle_url(self):
         """
@@ -538,7 +677,7 @@ class ProfanityFilterPlayer(xbmc.Player):
         """
         log_path = _log_path()
         if not log_path:
-            return ""
+            return []
 
         try:
             with open(log_path, "r", encoding="utf-8", errors="replace") as f:
@@ -650,34 +789,38 @@ class ProfanityFilterPlayer(xbmc.Player):
         active, so we ask Kodi which player is currently playing video.
         """
         try:
-            request = json.dumps({
-                "jsonrpc": "2.0",
-                "method": "Player.GetActivePlayers",
-                "id": 0,
-            })
-            response = json.loads(xbmc.executeJSONRPC(request))
-            for player in response.get("result", []):
+            for player in self._active_players():
                 if player.get("type") == "video":
                     return player.get("playerid", default)
         except Exception as e:
             log("Could not resolve active player id: {}".format(str(e)))
         return default
 
+    def _active_players(self):
+        """Return Kodi's list of active players."""
+        request = json.dumps({
+            "jsonrpc": "2.0",
+            "method": "Player.GetActivePlayers",
+            "id": 0,
+        })
+        response = json.loads(xbmc.executeJSONRPC(request))
+        players = response.get("result", [])
+        return players if isinstance(players, list) else []
+
     def _is_video_playing(self):
-        """True when a video player is active (so we ignore music, etc.)."""
+        """
+        True when a video player is active.
+
+        If the call itself fails we assume video: better to try to filter than
+        to silently skip.
+        """
         try:
-            request = json.dumps({
-                "jsonrpc": "2.0",
-                "method": "Player.GetActivePlayers",
-                "id": 0,
-            })
-            response = json.loads(xbmc.executeJSONRPC(request))
-            for player in response.get("result", []):
+            for player in self._active_players():
                 if player.get("type") == "video":
                     return True
         except Exception as e:
             log("Could not list active players: {}".format(str(e)))
-            return True  # Assume video; better to try than to skip silently
+            return True
         return False
 
     # ------------------------------------------------------------------
@@ -761,26 +904,6 @@ class ProfanityFilterPlayer(xbmc.Player):
             log("Error requesting subtitles: {}".format(str(e)))
             return False, 0
 
-    def _report_force_failure(self, exposed_tracks):
-        """
-        Emit a diagnostic that distinguishes the two ways getting a subtitle can
-        fail on a streaming source:
-          - a subtitle track IS exposed but wouldn't stay enabled
-            (source/setting quirk), or
-          - the source exposes NO subtitle at all for this title, so there is
-            nothing for Kodi to enable - muting can't work for this stream.
-        """
-        if exposed_tracks > 0:
-            notify_debug(
-                "{} subtitle track(s) exposed but none became active.[CR]"
-                "Playerid={}[CR]The source may delay delivery.".format(
-                    exposed_tracks, self._get_player_id()))
-        else:
-            notify_debug(
-                "No subtitle track exposed by this source.[CR]Playerid={}[CR]"
-                "Muting needs a subtitle the source provides.".format(
-                    self._get_player_id()))
-
     def _hide_subtitles(self):
         """
         Hide subtitle display without fully disabling the subtitle stream.
@@ -821,8 +944,6 @@ class ProfanityFilterPlayer(xbmc.Player):
         log("Filter loop started ({} mute interval(s)).".format(
             controller.interval_count))
 
-        # Give the source a moment to settle after the subtitle was switched
-        # off before we start toggling audio.
         next_subs_check = 0.0
         subs_reenabled = 0
 
@@ -883,7 +1004,8 @@ def _log_path():
 
 
 def _log_size():
-    """Current size of kodi.log in bytes (0 if unavailable).
+    """
+    Current size of kodi.log in bytes (0 if unavailable).
 
     Recorded when playback starts so only log lines written for *this* video
     are considered when hunting for its subtitle URL.

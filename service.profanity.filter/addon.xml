@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.profanity.filter" name="Profanity Filter" version="1.9.0" provider-name="Stefan Pretorius">
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.9.1" provider-name="Stefan Pretorius">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -10,7 +10,12 @@
     <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
     <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Reads the subtitle from the source, hides it from the screen, then mutes the audio exactly when a bad word is spoken. Works with local files and streaming add-ons such as ororo.tv.</description>
     <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
-    <news>1.9.0:
+    <news>1.9.1:
+- Fix: the add-on stopped working on the Google Streamer in 1.9.0. Version 1.9.0 asked Kodi whether a video was playing from inside the playback callback, which is not safe there, and quietly gave up on the video when the answer was not yet available. The check now happens in the background, retries while the player registers itself, and never skips a real video.
+- You now get a report on screen for every video saying exactly what happened, whether the filter engaged or why it did not. It stays on screen until you press OK, so it cannot scroll past unseen. Nothing is silent any more.
+- The report is also saved to report.txt in the add-on's data folder, so you no longer need to extract Kodi's log from the device to see what went wrong.
+- The "Show detailed failure diagnostics" setting is now "Troubleshooting - Show a report on screen for every video", and is on by default. Turn it off once things are working.
+1.9.0:
 - The add-on now always follows the same three steps for every video: read the subtitle from the source, hide the subtitle from the screen, then mute the bad words. Subtitles are hidden as soon as the data has been read, whether or not any bad words were found.
 - Fixes the filter not activating on streaming add-ons such as ororo.tv. The add-on now always requests the subtitle from the source and always waits for it to arrive, instead of skipping that wait when subtitles happened to be switched on already.
 - Fixes scanning the wrong subtitle: only log entries written since the current video started playing are considered, so a subtitle URL left over from a previous video can no longer be used instead of this one.
