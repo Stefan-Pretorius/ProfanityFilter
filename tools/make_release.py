@@ -113,14 +113,6 @@ def main():
         shutil.rmtree(DIST)
     os.makedirs(PAGES)
 
-    # Hosted skip-data document (copied so GitHub Pages serves it at the
-    # repo root, e.g. https://host.github.io/User/Repo/skipdata.json).
-    # The add-on fetches this automatically by movie title at play time.
-    skipdata_src = os.path.join(ROOT, "skipdata.json")
-    if os.path.isfile(skipdata_src):
-        shutil.copy2(skipdata_src, os.path.join(PAGES, "skipdata.json"))
-        print("  ->", os.path.join(PAGES, "skipdata.json"))
-
     # 1. Add-on zip (release asset + repository payload)
     addon_zip = os.path.join(DIST, "{id}-{ver}.zip".format(id=addon_id, ver=version))
     zip_dir(ADDON_DIR, addon_zip)
@@ -132,10 +124,14 @@ def main():
     print("  ->", repo_zip)
 
     # 3. Repository index
+    # Written as raw bytes with explicit LF endings. Kodi verifies addons.xml
+    # against addons.xml.md5, so the checksum has to be taken over exactly the
+    # bytes that get published - writing in text mode would let Windows turn
+    # the newlines into CRLF and the checksum would never match.
     xml, checksum = write_addons_xml(addon_content)
-    with open(os.path.join(PAGES, "addons.xml"), "w", encoding="utf-8") as fh:
-        fh.write(xml)
-    with open(os.path.join(PAGES, "addons.xml.md5"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(PAGES, "addons.xml"), "wb") as fh:
+        fh.write(xml.encode("utf-8"))
+    with open(os.path.join(PAGES, "addons.xml.md5"), "w", encoding="ascii", newline="") as fh:
         fh.write(checksum)
 
     # 4. GitHub Pages payload
