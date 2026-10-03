@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.profanity.filter" name="Profanity Filter" version="1.9.1" provider-name="Stefan Pretorius">
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.9.2" provider-name="Stefan Pretorius">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -10,7 +10,9 @@
     <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
     <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Reads the subtitle from the source, hides it from the screen, then mutes the audio exactly when a bad word is spoken. Works with local files and streaming add-ons such as ororo.tv.</description>
     <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
-    <news>1.9.1:
+    <news>1.9.2:
+- Fix: streaming add-ons such as ororo.tv were rejected outright before the subtitle was even looked for. The add-on treated "this source exposes no subtitle track" as "this video has no subtitle", but external subtitles are served as a URL that Kodi downloads without ever reporting a track - which is exactly the case the subtitle search exists to handle. The subtitle is now always searched for, and the track count is only reported as information.
+1.9.1:
 - Fix: the add-on stopped working on the Google Streamer in 1.9.0. Version 1.9.0 asked Kodi whether a video was playing from inside the playback callback, which is not safe there, and quietly gave up on the video when the answer was not yet available. The check now happens in the background, retries while the player registers itself, and never skips a real video.
 - You now get a report on screen for every video saying exactly what happened, whether the filter engaged or why it did not. It stays on screen until you press OK, so it cannot scroll past unseen. Nothing is silent any more.
 - The report is also saved to report.txt in the add-on's data folder, so you no longer need to extract Kodi's log from the device to see what went wrong.

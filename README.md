@@ -59,6 +59,20 @@ automatically. Whenever a new version is tagged in this repository, the
 workflow builds and publishes it to the same URL — Kodi downloads and
 installs the update itself (or you can press **Check for updates** manually).
 
+### It engages late, by design
+
+The subtitle is only readable once the source has delivered it, so the filter
+arms a few seconds into playback. **Profanity in roughly the first 10–15 seconds
+of a film cannot be muted** — by the time the subtitle arrives, the line has
+already been spoken. To arm sooner, lower **Subtitles → Subtitle scan delay**
+(default 10 s); to arm later and catch more, raise it.
+
+For the same reason, subtitle timing is approximate. **Timing → Pre-word buffer**
+and **Post-word buffer** widen the mute window around each word (default 0.3 s
+each side). Raise them if you can still hear the start or end of a word. If a
+word is consistently unmuted rather than clipped at the edges, the subtitle is
+out of sync and no buffer size will fully fix it.
+
 ## Seeing what the add-on is doing
 
 Every video produces a short report on screen. It stays up until you press OK,

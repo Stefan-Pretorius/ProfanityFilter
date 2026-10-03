@@ -349,18 +349,18 @@ class ProfanityFilterPlayer(xbmc.Player):
         # This is the step that makes streaming add-ons (ororo.tv) work: the
         # subtitle is only requested/opened once subtitles are switched on, so
         # we always ask for it, then give the source time to deliver it.
+        #
+        # A failed/"no track" result here is NOT a reason to give up. Streaming
+        # add-ons commonly serve the subtitle as an external URL that Kodi
+        # fetches without ever reporting it as a track, which is precisely why
+        # we can find it in Kodi's log. Gating on this value (as 1.9.0 did)
+        # skipped the search that actually works, so we only note it.
         enabled, exposed_tracks = self._ensure_subtitles_enabled()
         report.add("Subtitles: {}, {} track(s) exposed".format(
             "on" if enabled else "not on", exposed_tracks))
-
         if not enabled and exposed_tracks == 0:
-            report.add("The source offers NO subtitle for this video.")
-            report.add("Muting needs a subtitle the source provides.")
-            report.add("Result: NO SUBTITLE")
-            log("Source exposed no subtitle track for this video.",
-                xbmc.LOGWARNING)
-            notify("No subtitle track available. Filter inactive for this video.")
-            return
+            report.add("  (no track reported - will still look for a "
+                       "subtitle URL)")
 
         if subtitle_wait:
             log("Waiting {}s for subtitle to load...".format(subtitle_wait))
