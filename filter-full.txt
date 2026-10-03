@@ -1,15 +1,30 @@
-# Profanity Filter — Bad Word List
-# =================================
-# One word or pattern per line.
-# Lines starting with '#' are comments and are ignored.
-# Use '*' as a wildcard to match any characters.
+# ---------------------------------------------------------------------------
+# ARCHIVED - REFERENCE ONLY. DO NOT COPY THIS INTO filter.txt
+# ---------------------------------------------------------------------------
+# This is the original 2,750-word list. It is kept only so the variants it
+# contains stay available as a reference.
 #
-# Examples:
-#   hell        — matches the exact word "hell"
-#   sh*t        — matches "shit", "sheet", etc.
-#   *damn*      — matches any word containing "damn"
+# It is NOT what the add-on uses, because it mutes far too much ordinary
+# dialogue. Two distinct causes, both confirmed by testing:
 #
-# This list is intentionally written with mild obfuscation so the file
+#   1. Its wildcard entries match any number of characters, so:
+#          c*nt   also matches  cent, content, count, percent
+#          sh*t   also matches  shot, shots, shut, shaft, shoes, sheet, shout
+#          d*ck   also matches  duck
+#          *god*  also matches  goddess, godsend
+#      That is why "shot" and "cent" get muted in mid-conversation.
+#
+#   2. It treats words with a common innocent meaning as profanity:
+#          anal, cock, damn, god, hell, horny, piss, pissed, slut, tits
+#      "Dick" (a first name) and "cock" (a bird) are on the list too.
+#
+# The active list in service.profanity.filter/resources/filter.txt keeps the
+# genuinely useful spellings from here and drops both problems. If you want a
+# specific variant, copy that one line across - but check it against ordinary
+# English first.
+# ---------------------------------------------------------------------------
+
+# --- ORIGINAL HEADER (kept for reference) ---
 # itself is safe to distribute. Edit freely to add or remove words.
 # -----------------------------------------------------------------------
 

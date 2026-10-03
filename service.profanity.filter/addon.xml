@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.profanity.filter" name="Profanity Filter" version="1.9.2" provider-name="Stefan Pretorius">
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.10.0" provider-name="Stefan Pretorius">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -10,7 +10,13 @@
     <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
     <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Reads the subtitle from the source, hides it from the screen, then mutes the audio exactly when a bad word is spoken. Works with local files and streaming add-ons such as ororo.tv.</description>
     <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
-    <news>1.9.2:
+    <news>1.10.0:
+- Fix: streaming add-ons such as ororo.tv were not being filtered at all, because the add-on looked for the subtitle address in Kodi's log file. ororo never writes that address to the log unless you switch debug logging on, so on a normal box there was nothing to find. The add-on now asks the ororo add-on for the subtitle itself, using the login you have already saved there, and both ororo front-end domains are tried so a dead mirror does not stop it. Reading Kodi's log is now only a last resort.
+- Fix: too much of the film was being muted. Words with a common innocent meaning are no longer muted by default - "ass" (a donkey), "dick" (a name), "cock" (a bird), "god", "hell", "damn", "crap", "anal", "tits", "pissed", "horny". They have been moved to optional tiers you can switch on from the word list file.
+- Fix: a wildcard entry such as "sh*t" was matching "shot", "shut", "shoes" and "sheet", and "c*nt" was matching "cent", "content" and "count". The shipped word list no longer uses wildcards at all - the real spellings are written out in full - so ordinary dialogue stays audible. If you add wildcards yourself, note that '*' matches exactly one character.
+- Better coverage of real profanity: ~275 active entries now, including the spelling variants and subtitled forms ("fukker", "mfucker", "sh1t", "b!tch", "mothafucker") that the previous list missed.
+- The keyword lists inside the add-on are unchanged: subtitles are still read, hidden, and then muted.
+1.9.2:
 - Fix: streaming add-ons such as ororo.tv were rejected outright before the subtitle was even looked for. The add-on treated "this source exposes no subtitle track" as "this video has no subtitle", but external subtitles are served as a URL that Kodi downloads without ever reporting a track - which is exactly the case the subtitle search exists to handle. The subtitle is now always searched for, and the track count is only reported as information.
 1.9.1:
 - Fix: the add-on stopped working on the Google Streamer in 1.9.0. Version 1.9.0 asked Kodi whether a video was playing from inside the playback callback, which is not safe there, and quietly gave up on the video when the answer was not yet available. The check now happens in the background, retries while the player registers itself, and never skips a real video.

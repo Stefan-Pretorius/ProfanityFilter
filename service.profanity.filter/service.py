@@ -74,6 +74,31 @@ LOG_SCAN_BYTES = 400000
 # the log file. Keeps the on-screen text readable on a TV.
 REPORT_MAX_LINES = 14
 
+# The Ororo TV add-on. Its metadata API is the only reliable way to get a
+# subtitle URL, because Kodi exposes the subtitle under a human-readable name
+# and only writes its URL to the log at *debug* level.
+ORORO_ADDON_ID = "plugin.video.ororotv"
+ORORO_API_DOMAINS = ("front.ororo.tv", "front.ororo-mirror.tv")
+
+
+def _ororo_addon():
+    """
+    Return the Ororo TV add-on, or None when it is not installed.
+
+    Resolved lazily and cached: Ororo is optional, so this add-on must still
+    work for local files and other streaming sources without it.
+    """
+    global _ADDON_ORORO
+    if _ADDON_ORORO is None:
+        try:
+            _ADDON_ORORO = xbmcaddon.Addon(id=ORORO_ADDON_ID)
+        except Exception:
+            return None
+    return _ADDON_ORORO
+
+
+_ADDON_ORORO = None
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -123,6 +148,27 @@ def _kodi_version():
         return xbmc.getInfoLabel("System.BuildVersion") or "unknown"
     except Exception:
         return "unknown"
+
+
+def _looks_retrievable(name):
+    """
+    True if a subtitle stream name is something we can actually fetch.
+
+    Some sources register the subtitle under its URL; others register a real
+    file path; and ororo.tv registers a human-readable title such as
+    "clarksons farm s01e01 (External)", which is useless to us.
+    """
+    if not name:
+        return False
+    if name.startswith(("http://", "https://")):
+        return True
+    # An absolute local path that exists.
+    try:
+        if os.path.isabs(name) and os.path.isfile(name):
+            return True
+    except (OSError, ValueError):
+        pass
+    return False
 
 
 def notify(message):
@@ -381,7 +427,7 @@ class ProfanityFilterPlayer(xbmc.Player):
             if not self._subtitles_enabled():
                 self._ensure_subtitles_enabled()
 
-            cues, reason_a = self._try_get_subtitle_from_url()
+            cues, reason_a = self._try_get_subtitle_from_url(video_path)
             if cues:
                 log("Got {} cues from subtitle URL (attempt {}).".format(
                     len(cues), attempt))
@@ -543,14 +589,14 @@ class ProfanityFilterPlayer(xbmc.Player):
     # Subtitle acquisition strategies
     # ------------------------------------------------------------------
 
-    def _try_get_subtitle_from_url(self):
+    def _try_get_subtitle_from_url(self, video_path):
         """
         Try to find the subtitle URL and download/parse it.
         Returns (list_of_cues, reason_str) - cues is None if not found.
         """
-        url = self._find_subtitle_url()
+        url = self._find_subtitle_url(video_path)
         if not url:
-            return None, "no subtitle URL found (JSON-RPC and log scan)"
+            return None, "no subtitle URL found (player, Ororo API, log scan)"
 
         content = self._download_subtitle(url)
         if not content:
@@ -576,25 +622,215 @@ class ProfanityFilterPlayer(xbmc.Player):
             return cues, "read {} cues from a local file".format(len(cues))
         return None, "local subtitle file parsed to 0 cues"
 
-    def _find_subtitle_url(self):
+    def _find_subtitle_url(self, video_path=""):
         """
-        Find the subtitle URL using multiple strategies:
-        1. Check Kodi JSON-RPC for current subtitle info
-        2. Parse the Kodi log file for the subtitle URL
+        Find the subtitle URL, trying each strategy in order of reliability.
+
+        For streaming add-ons such as ororo.tv this is the crux of the whole
+        add-on, and the order matters a lot:
+
+        1. The Ororo metadata API. Reliable and independent of Kodi's log
+           settings, because Ororo does not expose a URL through JSON-RPC - it
+           registers the subtitle under a human-readable name like
+           "clarksons farm s01e01 1080p web h264 kogi (External)".
+        2. Player JSON-RPC. Works when the source hands Kodi a real URL, e.g.
+           for plain HTTP streams.
+        3. Kodi's log. Only works with debug/event logging switched on, so it
+           is a last resort rather than the primary method.
         """
-        # Strategy 1: JSON-RPC
+        # Strategy 1: Ororo API
+        url = self._get_ororo_subtitle_url(video_path)
+        if url:
+            log("Subtitle URL found via the Ororo API.")
+            return url
+
+        # Strategy 2: JSON-RPC
         url = self._get_subtitle_url_from_jsonrpc()
         if url:
             log("Subtitle URL found via JSON-RPC.")
             return url
 
-        # Strategy 2: Parse the Kodi log (most reliable for ororo.tv)
+        # Strategy 3: Parse the Kodi log
         url = self._find_subtitle_url_in_log()
         if url:
             log("Subtitle URL found via log scan.")
             return url
 
         return ""
+
+    # ------------------------------------------------------------------
+    # Ororo.tv specific subtitle discovery
+    # ------------------------------------------------------------------
+    #
+    # Ororo hands Kodi a subtitle stream whose *name* is a human-readable
+    # title, not a URL, and it only writes the URL to kodi.log at debug level.
+    # On a box with normal logging that leaves no URL anywhere to be found, so
+    # we ask Ororo's own API for the media's subtitle list using the
+    # credentials the Ororo add-on already holds.
+
+    def _get_ororo_subtitle_url(self, video_path):
+        """
+        Fetch the subtitle URL for Ororo.tv content, or "" if not applicable.
+        """
+        try:
+            if not video_path or "ororo" not in video_path.lower():
+                return ""
+
+            media_id = self._extract_ororo_media_id(video_path)
+            if not media_id:
+                log("Ororo playback detected, but no media id could be read.")
+                return ""
+
+            info = self._fetch_ororo_media_info(media_id, video_path)
+            if not isinstance(info, dict):
+                return ""
+
+            subtitles = info.get("subtitles") or []
+            if not isinstance(subtitles, list) or not subtitles:
+                log("Ororo API lists no subtitles for media id {}.".format(media_id))
+                return ""
+
+            subtitle = self._choose_ororo_subtitle(subtitles)
+            if not subtitle:
+                log("Ororo returned subtitles but none were usable.")
+                return ""
+
+            url = subtitle.get("url", "")
+            if url:
+                log("Ororo subtitle chosen: lang='{}'.".format(
+                    subtitle.get("lang", "")))
+            return url
+        except Exception as e:
+            log("Ororo subtitle lookup error: {}".format(str(e)))
+        return ""
+
+    def _extract_ororo_media_id(self, video_path):
+        """
+        Pull the Ororo movie/episode id out of the plugin or resolved URL.
+
+        Kodi reports the *resolved* stream, e.g.
+        https://edge-ru4.ororo-mirror.tv/uploads/video/file/65313/Clarksons...
+        while the un-resolved plugin URL carries ?id=65313. Try both.
+        """
+        patterns = (
+            r"[?&]id=(\d+)",
+            r"/(?:video|movie)/file/(\d+)/",
+            r"/(?:episodes|movies)/(\d+)",
+            r"/uploads/(?:video|movie)/(\d+)",
+        )
+        for pattern in patterns:
+            match = re.search(pattern, video_path)
+            if match:
+                return match.group(1)
+        return ""
+
+    def _fetch_ororo_media_info(self, media_id, video_path=""):
+        """
+        Return Ororo episode/movie metadata using the Ororo add-on's login.
+
+        Both Ororo front-end domains are tried, with the namespace that
+        matches the stream first, so a dead mirror does not stop us.
+        """
+        try:
+            import base64
+            import urllib.request
+            import urllib.error
+        except ImportError:
+            return {}
+
+        auth_header = self._get_ororo_auth_header("")
+        if not auth_header:
+            log("Ororo credentials are not configured in the Ororo add-on.")
+            return {}
+
+        namespaces = self._get_ororo_endpoint_order(video_path)
+        endpoints = ["https://{}/api/v2/{}/{}".format(domain, ns, media_id)
+                     for domain in ORORO_API_DOMAINS for ns in namespaces]
+
+        for url in endpoints:
+            try:
+                req = urllib.request.Request(url)
+                req.add_header("Accept", "application/json")
+                req.add_header("User-Agent", "Kodi ({})".format(
+                    _ADDON.getAddonInfo("version")))
+                req.add_header("Authorization", auth_header)
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    info = json.loads(resp.read().decode("utf-8", errors="replace"))
+                if isinstance(info, dict) and info.get("subtitles"):
+                    log("Ororo metadata fetched from {}".format(
+                        url.split("/api/")[0].split("//")[-1]))
+                    return info
+            except urllib.error.HTTPError as e:
+                if e.code not in (404, 405):
+                    log("Ororo API HTTP {} for {}".format(e.code, url))
+            except Exception as e:
+                log("Ororo API error on {}: {}".format(url, str(e)))
+
+        return {}
+
+    def _get_ororo_endpoint_order(self, video_path):
+        """Try the Ororo API namespace matching the current stream first."""
+        path = (video_path or "").lower()
+        if "content_type=movies" in path or "/movie/file/" in path \
+                or "/uploads/movie/" in path:
+            return ("movies", "episodes")
+        return ("episodes", "movies")
+
+    def _choose_ororo_subtitle(self, subtitles):
+        """
+        Pick the best subtitle for profanity matching.
+
+        English first - profanity matching needs English dialogue - then
+        whatever language the Ororo add-on is configured to prefer, then any
+        subtitle at all rather than giving up.
+        """
+        preferred = self._get_ororo_preferred_language()
+        language_sets = [("en", "eng", "english")]
+        if preferred and preferred not in language_sets[0]:
+            language_sets.append((preferred,))
+
+        for wanted in language_sets:
+            for subtitle in subtitles:
+                if not isinstance(subtitle, dict):
+                    continue
+                if subtitle.get("lang", "").strip().lower() in wanted:
+                    return subtitle
+
+        for subtitle in subtitles:
+            if isinstance(subtitle, dict) and subtitle.get("url"):
+                return subtitle
+        return {}
+
+    def _get_ororo_preferred_language(self):
+        """Read the Ororo add-on's preferred subtitle language, if set."""
+        try:
+            addon = _ororo_addon()
+            if addon is None:
+                return ""
+            lang_name = addon.getSetting("sublang1")
+            if lang_name:
+                return xbmc.convertLanguage(lang_name, xbmc.ISO_639_1).lower()
+        except Exception:
+            pass
+        return ""
+
+    def _get_ororo_auth_header(self, url=""):
+        """
+        Return a Basic auth header for Ororo URLs. Never logs the secret.
+        """
+        try:
+            import base64
+            addon = _ororo_addon()
+            if addon is None:
+                return ""
+            user = addon.getSetting("user")
+            password = addon.getSetting("password")
+            if not user or not password:
+                return ""
+            token = "{}:{}".format(user, password).encode("utf-8")
+            return "Basic " + base64.b64encode(token).decode("ascii")
+        except Exception:
+            return ""
 
     def _get_subtitle_url_from_jsonrpc(self):
         """
@@ -618,23 +854,29 @@ class ProfanityFilterPlayer(xbmc.Player):
             sub_index = current_sub.get("index", -1)
             log("Current subtitle: index={}, name='{}'".format(sub_index, sub_name))
 
-            # Check if the name contains a URL
-            if sub_name and ("http://" in sub_name or "https://" in sub_name):
-                log("Subtitle name is a URL!")
+            # Accept a URL, or a local path if the source handed Kodi a file.
+            if sub_name and _looks_retrievable(sub_name):
+                log("Current subtitle is directly retrievable.")
                 return sub_name
 
             # Log available subtitles for debugging
             subtitles = result.get("subtitles", [])
             if isinstance(subtitles, list):
                 log("Available subtitle streams: {}".format(len(subtitles)))
+                external = 0
                 for sub in subtitles:
                     if not isinstance(sub, dict):
                         continue
                     sname = sub.get("name", "")
                     log("  Sub: name='{}' lang='{}'".format(
                         sname, sub.get("language", "")))
-                    if "http://" in sname or "https://" in sname:
+                    if sub.get("name") and _looks_retrievable(sname):
                         return sname
+                    if "(External)" in sname or "external" in sname.lower():
+                        external += 1
+                if external:
+                    log("Subtitles exist but are opaque external streams - "
+                        "their URL is not exposed here.")
 
         except Exception as e:
             log("JSON-RPC subtitle check error: {}".format(str(e)))
@@ -704,6 +946,10 @@ class ProfanityFilterPlayer(xbmc.Player):
         Download a subtitle file from a URL and return its text content.
         """
         try:
+            # Ororo occasionally returns a root-relative path.
+            if url.startswith("/"):
+                url = ORORO_API_DOMAINS[0] + url
+
             log("Downloading subtitle from: {}".format(url[:120]))
 
             # Method 1: xbmcvfs.File (handles Kodi's internal URL schemes)
@@ -729,6 +975,9 @@ class ProfanityFilterPlayer(xbmc.Player):
                 import urllib.request
                 req = urllib.request.Request(url)
                 req.add_header("User-Agent", "Kodi/21.0")
+                auth_header = self._get_ororo_auth_header(url)
+                if auth_header:
+                    req.add_header("Authorization", auth_header)
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     content = resp.read().decode("utf-8", errors="replace")
                 if content and len(content) > 50:

@@ -3,142 +3,414 @@
 # One word or phrase per line. Lines starting with '#' are comments and are
 # ignored. Edit freely to add or remove words for your household.
 #
-# Optional wildcards:
-#   * matches a single character.  e.g.  sh*t  matches "shit" / "shut" / "shat"
-#   (but NOT "shift", "sheet" or "shout" — this keeps innocent words audible).
+# Matching is case-insensitive and whole-word, so "ass" will never match
+# "class", "pass" or "assessment".
 #
-# The list is split into tiers. Only the words ABOVE the dashed line are
-# active. Uncomment entries in the lower tiers to enable them.
+# The list is split into tiers. Only the words ABOVE the first dashed line
+# are active. Uncomment entries in the lower tiers to switch them on.
 #
-# NOTE: matching is case-insensitive and whole-word, so "ass" will never
-# match "class", "pass" or "assessment".
+# Wildcards
+# ---------
+# A '*' matches exactly ONE character, so "sh*t" matches "shit", "shat" and
+# "shut". That makes wildcards blunt: "sh*t" would also mute the harmless
+# words "shot" and "shut", and "c*nt" would mute "cent". No entry below uses
+# one - the real spellings are written out in full instead, which keeps the
+# filter accurate and keeps ordinary dialogue audible. If you add a wildcard
+# yourself, check it against everyday words before you save.
+#
+# Every entry in the active tier is either a word that does not exist in
+# ordinary English, or a word that exists but is never used innocently. Words
+# that have a common innocent meaning - "ass" (a donkey), "dick" (a name),
+# "cock" (a bird), "sod" (turf), "damn", "hell", "god" - are deliberately
+# kept OUT of the active tier so that ordinary dialogue stays audible.
 # -----------------------------------------------------------------------------
 
-# --- Active: strong, unambiguous profanity ------------------------------
+# --- Active: unambiguous profanity ---------------------------------------
+# The f-word and its compounds
 fuck
-fucks
 fucked
 fucker
 fuckers
 fucking
+fuckings
+fucks
 fuck off
 fuck you
-fucked up
-fuckhead
-fuckface
-fucktard
-fuckwad
-fuckwit
-fuckboy
+fuck all
+fucked off
+fucking hell
+fuck head
+fuck face
+fuck wit
+fuck wad
+fuck bag
 motherfucker
 motherfuckers
 motherfucking
+motherfucked
+motherfuckerz
+motherfuck
+mothafucker
+mothafuckers
+mothafucking
+mothafucked
+mothafucka
+mothafuckaz
+mfucker
+mthrfucker
+mtherfucker
+mutherfucker
+mthrfucking
+mutha fucker
+mutherfucking
 mother fucker
-mother fucking
+mother fuker
+motha fucker
+motha fuker
+mutha fuker
+mothafuckings
+muthafuckker
+# common misspellings and subtitles' spelling-out
+fuk
+fukk
+fuks
+fuked
+fuken
+fuker
+fukin
+fuking
+fukker
+fukkin
+fukkah
+fuktard
+fuktards
+fukwhit
+phuck
+phucked
+fuq
+fvck
+f u c k
+f-u-c-k
+f.u.c.k
+f_u_c_k
+# the s-word and its compounds
 shit
-shitty
+shits
+shitted
+shiting
+shittings
 shite
+shitey
+shiteater
+shitty
+shittier
+shittiest
 shithead
+shitheads
 shithole
+shitass
+shitbag
+shitbags
+shitbrain
+shitbreath
+shitcunt
+shitface
+shitfaced
+shithouse
+shitings
+shitlist
+shitload
+shitloads
+shitspitter
+shitstain
+shit wall
 bullshit
-piece of shit
-holy shit
-dipshit
-dumbshit
+bullshits
+bullshitted
 horseshit
+dumbshit
+dumbshits
+dipshit
+jackshit
+apeshit
+goddamnshit
+piece of shit
+pieceofshit
+shit ass
+shit-ass
+shithead's
+s.h.i.t.
+s-h-i-t
+s_h_i_t
+s hit
+s.h.i.t
+sh!t
+sh!+
+sh1t
+sh1ts
+sh1ter
+5h1t
+5hit
+shi+
+# c-word
 cunt
 cunts
+cuntz
+cuntface
+cuntfuck
+cunthole
+cuntlick
+cuntlicker
+cuntlicking
+cunteyed
+cuntslut
+thundercunt
+c u n t
+c-u-n-t
+c.u.n.t
+# a-words and their compounds
 asshole
 assholes
-ass
+asshat
+asswipe
+asswipes
+assbag
+assfucker
+assfuck
+assfukka
+assshit
+asswhore
+ass-hat
+ass-fucker
+ass-fukka
+ashole
+asholes
+ass hole
 arsehole
 arseholes
 arse
-asshat
+arses
 jackass
 jackasses
-asswipe
-dick
-dicks
+dumbass
+dumbasses
+smartass
+smartasses
+kick his ass
+kick her ass
+piece of ass
+# d-words
 dickhead
 dickheads
 dickwad
-cock
-cocks
-cockhead
+dickface
+dick move
+douche
+douches
+douchey
+douchebag
+douchebags
+douch3
+d0uche
+d0uch3
+douche bag
+douche-bag
+twat
+twats
+twatty
+twathead
+twatwaffle
+twatlips
+tw4t
+tosser
+tossers
+tosser off
+# b-words
+bitch
+bitches
+bitched
+bitcher
+bitchers
+bitchin
+bitching
+bitchy
+bitchass
+bitchslap
+bitchez
+b!tch
+b!+ch
+b1tch
+b17ch
+bi+ch
+bi7ch
+b i t c h
+dumbbitch
+son of a bitch
+sons of bitches
+sonofabitch
+son-of-a-bitch
+# bastard
+bastard
+bastards
+bastardz
+bastardo
+b a s t a r d
+# w-words
+whore
+whores
+whored
+whoring
+whorebag
+whoreface
+wh0re
+wh0reface
 cocksucker
 cocksuckers
 cocksucking
-bitch
-bitches
-bitching
-bitchy
-son of a bitch
-sons of bitches
-bastard
-bastards
-pussy
-pussies
-twat
-twats
-whore
-whores
-whoring
-slut
-sluts
-slutty
-prick
-pricks
+cocksuck
+c0cksucker
+cocksucked
+# w-words
+wank
 wanker
 wankers
 wanking
-wank
+wanky
+wankie
+prick
+pricks
+prickhead
+pr1ck
+pricksucker
+prick off
+# s-words
+slut
+sluts
+slutty
+slutbag
+skank
+skanks
+skanky
+camslut
+cumslut
+easyslut
+slutbucket
+slutkiss
+nastyslut
+skankybitch
+# misc clear profanity
+bugger
+buggered
+buggery
+bollock
+bollocks
+bollox
+turd
+turds
+bollocking
 knobhead
 knobheads
-tosser
-tossers
-douche
-douchebag
-douchebags
+prickheads
+nutfucker
+nosyarse
 # -----------------------------------------------------------------------------
-
-# --- Optional: mild profanity -------------------------------------------
-# Uncomment to also mute milder swear words. These appear very often in
-# normal dialogue, so enabling them mutes noticeably more of the story.
+# --- Optional: mild swear words -----------------------------------------
+# These are real swear words, but they are also everyday English, so they
+# are OFF by default. Enabling them mutes noticeably more of ordinary
+# dialogue ("damn", "hell" and "god" occur very often in normal speech).
+# Uncomment any you want.
 # damn
-# damnit
 # damn it
-# goddamn
+# damnit
 # goddamnit
+# goddamn
+# goddamned
 # hell
-# crap
-# crappy
-# god
+# what the hell
 # jesus
+# jesus christ
 # christ
 # oh my god
-# what the hell
-
-# --- Optional: sexual / anatomical terms ---------------------------------
-# Used in documentaries, news and sex-education content, so muted by default.
+# crap
+# crappy
+# piss
+# pissed off
+# pissing
+# sod
+# sodding
+# sod off
+# git
+# wot
+# ass
+# asses
+# bugger off
+# --- Optional: sexual and anatomical terms ------------------------------
+# These are anatomical rather than profane, so they are OFF by default.
+# They still appear in documentaries, news, medical shows and
+# sex-education content. Note that "dick" and "cock" are also here because
+# they double as an ordinary name and a bird.
+# dick
+# dicks
+# dickish
+# cock
+# cocks
+# cockhead
 # penis
 # penises
 # vagina
 # vaginas
 # clitoris
+# clits
+# clit
 # testicle
 # testicles
 # erection
+# erectile
+# boner
+# orgasm
+# orgasms
 # orgasm
 # intercourse
 # masturbate
+# masturbation
 # condom
+# condoms
 # nipple
 # nipples
-# semen
-# sperm
-
-# --- Optional: slurs -------------------------------------------------------
+# breast
+# breasts
+# boob
+# boobs
+# tit
+# tits
+# titty
+# butt
+# butts
+# anal
+# anus
+# horny
+# sexy
+# sex
+# porn
+# pornography
+# orgasm
+# --- Optional: leetspeak and exotic spellings ---------------------------
+# These can never collide with ordinary words, so enabling them is harmless.
+# They only help when a subtitle spells profanity out in leetspeak.
+# @$$
+# a$$
+# a55
+# a55hole
+# 4r5e
+# 2g1c
+# 2 girls 1 cup
+# fvck
+# sh!t
+# b1tch
+# fuq
+# pr1ck
+# 5h1t
+# --- Optional: slurs ----------------------------------------------------
 # DISABLED BY DEFAULT. The words below are hate speech. Only uncomment if
 # you specifically want these muted in your household. It is strongly
 # recommended that very young children are never exposed to these words.
@@ -148,6 +420,7 @@ douchebags
 # faggot
 # faggots
 # fag
+# fags
 # dyke
 # dykes
 # spic
@@ -160,3 +433,7 @@ douchebags
 # beaner
 # gook
 # coon
+# coons
+# tranny
+# retard
+# retarded

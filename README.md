@@ -15,20 +15,51 @@ intact.
 
 Compatible with Kodi 19 (Matrix), 20 (Nexus) and 21 (Omega).
 
-## Why v1.9.0
+## How it finds the subtitle
 
-Scene skipping is gone, and the add-on is now focused purely on filtering
-profanity. The flow is deliberately the same three steps for every video, which
-is what makes it work reliably on **ororo.tv**:
+For every video the add-on tries three sources in order of reliability, and
+tells you on screen which one worked:
+
+1. **The ororo.tv API.** ororo hands Kodi the subtitle under a human-readable
+   name such as `clarksons farm s01e01 (External)`, *not* as an address, and
+   it only writes that address to `kodi.log` at debug level. So on a box with
+   normal logging there is no address anywhere to be found. The add-on
+   therefore asks the ororo add-on directly for the subtitle list, reusing the
+   login already saved in that add-on, and tries both ororo front-end domains
+   so a dead mirror does not stop it.
+2. **The player.** For sources that do hand Kodi a real subtitle address.
+3. **Kodi's log.** Last resort only — see above.
+
+This is the single biggest reason the filter now works on ororo.tv.
+
+## Why ordinary words are no longer muted
+
+An earlier build muted far too much of the film, for two separate reasons,
+both confirmed by testing rather than guessed at:
+
+- **Wildcards were matching too much.** A wildcard here means "any number of
+  characters", so `sh*t` also matched *shot*, *shut*, *shoes* and *sheet*,
+  `c*nt` also matched *cent*, *content* and *count*, and `d*ck` also matched
+  *duck*. `*` now matches exactly one character, and the shipped word list no
+  longer uses wildcards at all — every real spelling is written out in full.
+- **Words with an innocent meaning were on the list.** `god`, `hell`, `damn`,
+  `crap`, `anal`, `cock`, `tits`, `pissed`, `slut` and `horny` were all being
+  treated as profanity, which is how `Dick` (a first name) and `cock` (a bird)
+  ended up muted mid-sentence. All of them now live in an optional tier that is
+  off by default.
+
+Every entry in the active tier is either a word that does not exist in ordinary
+English, or one that exists but is never used innocently. Coverage went *up* at
+the same time — ~275 active entries including the spelling variants and
+subtitled forms (`fukker`, `mfucker`, `sh1t`, `b1tch`, `mothafucker`) that were
+missing before.
+
+## Other behaviour worth knowing
 
 - **Always request the subtitle, always wait for it.** Earlier versions skipped
   the wait when subtitles happened to already be switched on, so the scan could
   start before the source had handed anything over. The add-on now always asks
   the source to deliver its subtitle and always gives it time to arrive.
-- **Only look at log entries from the current video.** The subtitle URL is
-  recovered from `kodi.log`. Only lines written since this video started
-  playing are considered, so a subtitle URL left over from a *previous* video
-  can no longer be scanned instead of this one.
 - **Subtitles are hidden as soon as the data has been read**, whether or not any
   bad words were found.
 - **One loop, not two.** Muting and keeping the subtitles hidden now run in a
@@ -37,6 +68,7 @@ is what makes it work reliably on **ororo.tv**:
 - **Starting a new video is never skipped.** Stopping one video and starting
   another quickly used to leave the new video unfiltered.
 - Music and other non-video playback is ignored.
+- Scene skipping was removed; the add-on filters profanity only.
 
 ## Install (one time)
 
@@ -123,8 +155,18 @@ slurs) that are disabled by default — uncomment lines to enable them.
 
 - Matching is **case-insensitive** and **whole-word** (`ass` never matches
   `class`, `pass` or `assessment`).
-- `*` is a wildcard for a **single** character: `sh*t` → `shit`, `shut`, `shat`
-  — but never `shift`, `sheet` or `shout`.
+- `*` is a wildcard for a **single** character, so `sh*t` matches `shit`,
+  `shut` and `shat` — but never `shift`, `sheet` or `shout`.
+- **Wildcards are blunt, so the shipped list uses none.** `sh*t` still mutes
+  the harmless *shot* and *shut*; `c*nt` still mutes *cent*. If you add a
+  wildcard yourself, check it against everyday words before saving.
+- Words with a common innocent meaning (`ass`, `dick`, `cock`, `god`, `hell`,
+  `damn`, `crap`, `anal`) are deliberately **not** active. Uncomment them in
+  the optional tiers if you do want them.
+
+`filter-full.txt` in the repository root is the original 2,750-word list, kept
+as a reference only. It mutes far too much ordinary dialogue — the header
+inside that file explains exactly which entries cause it and why.
 
 ## Releasing a new version
 
@@ -133,7 +175,7 @@ slurs) that are disabled by default — uncomment lines to enable them.
 3. Tag and push — everything else is automated:
 
 ```sh
-git tag v1.9.0
+git tag v1.10.0
 git push --tags
 ```
 
@@ -151,7 +193,7 @@ service.profanity.filter/     # the add-on itself
 repository.profanityfilter/   # repo add-on (installed once)
 tools/make_release.py         # builds zips + addons.xml locally
 .github/workflows/release.yml # builds + publishes on every v* tag
-filter-full.txt               # old 2,750-word list (reference only)
+filter-full.txt               # archived 2,750-word list (reference only)
 ```
 
 ## License
