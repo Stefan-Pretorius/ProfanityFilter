@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addons>
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.10.0" provider-name="Stefan Pretorius">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.service" library="service.py"/>
+  <extension point="xbmc.addon.metadata">
+    <platform>all</platform>
+    <license>GPL-2.0-or-later</license>
+    <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
+    <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Reads the subtitle from the source, hides it from the screen, then mutes the audio exactly when a bad word is spoken. Works with local files and streaming add-ons such as ororo.tv.</description>
+    <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
+    <news>1.10.0:
+- Fix: streaming add-ons such as ororo.tv were not being filtered at all, because the add-on looked for the subtitle address in Kodi's log file. ororo never writes that address to the log unless you switch debug logging on, so on a normal box there was nothing to find. The add-on now asks the ororo add-on for the subtitle itself, using the login you have already saved there, and both ororo front-end domains are tried so a dead mirror does not stop it. Reading Kodi's log is now only a last resort.
+- Fix: too much of the film was being muted. Words with a common innocent meaning are no longer muted by default - "ass" (a donkey), "dick" (a name), "cock" (a bird), "god", "hell", "damn", "crap", "anal", "tits", "pissed", "horny". They have been moved to optional tiers you can switch on from the word list file.
+- Fix: a wildcard entry such as "sh*t" was matching "shot", "shut", "shoes" and "sheet", and "c*nt" was matching "cent", "content" and "count". The shipped word list no longer uses wildcards at all - the real spellings are written out in full - so ordinary dialogue stays audible. If you add wildcards yourself, note that '*' matches exactly one character.
+- Better coverage of real profanity: ~275 active entries now, including the spelling variants and subtitled forms ("fukker", "mfucker", "sh1t", "b!tch", "mothafucker") that the previous list missed.
+- The keyword lists inside the add-on are unchanged: subtitles are still read, hidden, and then muted.
+1.9.2:
+- Fix: streaming add-ons such as ororo.tv were rejected outright before the subtitle was even looked for. The add-on treated "this source exposes no subtitle track" as "this video has no subtitle", but external subtitles are served as a URL that Kodi downloads without ever reporting a track - which is exactly the case the subtitle search exists to handle. The subtitle is now always searched for, and the track count is only reported as information.
+1.9.1:
+- Fix: the add-on stopped working on the Google Streamer in 1.9.0. Version 1.9.0 asked Kodi whether a video was playing from inside the playback callback, which is not safe there, and quietly gave up on the video when the answer was not yet available. The check now happens in the background, retries while the player registers itself, and never skips a real video.
+- You now get a report on screen for every video saying exactly what happened, whether the filter engaged or why it did not. It stays on screen until you press OK, so it cannot scroll past unseen. Nothing is silent any more.
+- The report is also saved to report.txt in the add-on's data folder, so you no longer need to extract Kodi's log from the device to see what went wrong.
+- The "Show detailed failure diagnostics" setting is now "Troubleshooting - Show a report on screen for every video", and is on by default. Turn it off once things are working.
+1.9.0:
+- The add-on now always follows the same three steps for every video: read the subtitle from the source, hide the subtitle from the screen, then mute the bad words. Subtitles are hidden as soon as the data has been read, whether or not any bad words were found.
+- Fixes the filter not activating on streaming add-ons such as ororo.tv. The add-on now always requests the subtitle from the source and always waits for it to arrive, instead of skipping that wait when subtitles happened to be switched on already.
+- Fixes scanning the wrong subtitle: only log entries written since the current video started playing are considered, so a subtitle URL left over from a previous video can no longer be used instead of this one.
+- Fixes the filter being skipped entirely when you stop one video and start another quickly.
+- Muting and the subtitle re-hide now run in a single loop, so they can no longer interfere with each other on streaming sources.
+- Non-video playback (music) is ignored.
+- Removed scene skipping and all of its settings; this add-on is now focused purely on filtering profanity.
+1.8.1:
+- Fix subtitles re-appearing during filtering on streaming add-ons (e.g. ororo on a Google Streamer): after the add-on reads the subtitle data and hides the text, some sources re-enable subtitles on their own. The add-on now keeps watching the subtitle state for the rest of the session and re-hides them every second, so profanity never flickers back onto the screen.
+1.8.0:
+- Automatic scene-skipping data: the add-on can now fetch scene-skip timestamps by movie from a hosted JSON file (no files needed on the device, works on a Google Streamer / Android TV box). The video is identified from Kodi's metadata (Player.GetItem) for streaming, or from the file/URL for local content. Set the URL in Settings (defaults to the repo's published skipdata.json) and add entries keyed by movie title, plus an optional "default" entry.
+1.7.1:
+- Fix "tried to force subtitles on but none became active" on streaming sources (e.g. Google Streamer + ororo): enabling an external subtitle is asynchronous, so the add-on now re-requests it inside the retry loop and re-selects the exposed track by index with enable=true until it becomes active, instead of giving up after a single attempt.
+- On Android/Streamer devices where a source never exposes a subtitle track while subtitles are off, the on-screen diagnostic now clearly distinguishes "a track was exposed but wouldn't stick" from "the source provides no subtitle for this video", so the cause is easy to understand.
+1.7.0:
+- New: scene skipping. When enabled, the add-on jumps past flagged scenes (scary, intense, mature) instead of only muting. Scene windows are read from simple offline skip lists you edit yourself, no subscription or external service needed.
+- Skip lists live in special://profile/addon_data/service.profanity.filter/skiplists/ and match by movie name (e.g. "Avatar (2009).skip.txt") or global.skip.txt for every video. Format is one "start end" per line (mm:ss / h:mm:ss / plain seconds). A bundled example is included.
+- New settings: "Enable scene skipping" and "Skip-start lookahead (seconds)".
+1.6.1:
+- Fix streaming subtitle discovery: subtitle URLs with signed query strings (e.g. ororo WebVTT tokens) are now kept intact so downloads no longer fail with auth errors.
+- Fall back to scanning the full Kodi log when the subtitle URL falls outside the recent log tail.
+- Adds a "Show detailed failure diagnostics" setting that shows the exact failing stage on screen (player id, whether subtitles became active, URL/download/parse results) so issues are easy to report without reading Kodi's log.
+1.6.0:
+- Subtitles are no longer shown on screen. The filter works with subtitles switched off: local files are read from disk directly (never displayed), and streaming subtitles are only enabled long enough to capture the timing data, then hidden again.
+- The "Hide subtitles after scanning" setting has been removed, profanity text is always kept off the screen.
+1.5.0:
+- Fix false positives caused by overly greedy wildcards (sh*t no longer matches "shift", c*nt no longer matches "count").
+- Ship a curated word list. Innocent/common words (god, hell, abuse, etc.) are no longer muted by default.
+- Use the active video player for subtitle discovery instead of a hardcoded player id.</news>
+  </extension>
+</addon>
+</addons>
