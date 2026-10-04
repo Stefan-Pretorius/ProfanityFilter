@@ -42,17 +42,36 @@ both confirmed by testing rather than guessed at:
   `c*nt` also matched *cent*, *content* and *count*, and `d*ck` also matched
   *duck*. `*` now matches exactly one character, and the shipped word list no
   longer uses wildcards at all — every real spelling is written out in full.
-- **Words with an innocent meaning were on the list.** `god`, `hell`, `damn`,
-  `crap`, `anal`, `cock`, `tits`, `pissed`, `slut` and `horny` were all being
-  treated as profanity, which is how `Dick` (a first name) and `cock` (a bird)
+- **Words with an innocent meaning were on the list.** `ass` (a donkey), `dick`
+  (a first name), `cock` (a bird), `crap`, `anal`, `tits`, `pissed`, `slut` and
+  `horny` were all being treated as profanity, which is how `Dick` and `cock`
   ended up muted mid-sentence. All of them now live in an optional tier that is
   off by default.
 
 Every entry in the active tier is either a word that does not exist in ordinary
 English, or one that exists but is never used innocently. Coverage went *up* at
-the same time — ~275 active entries including the spelling variants and
+the same time — ~308 active entries including the spelling variants and
 subtitled forms (`fukker`, `mfucker`, `sh1t`, `b1tch`, `mothafucker`) that were
 missing before.
+
+## Religious exclamations (blasphemy)
+
+The religious oaths are muted, but only in their **oath form**. *Oh my God*,
+*My God*, *Oh God*, *Jesus*, *Jesus Christ*, *For Christ's sake*, *God damn it*
+and *What the hell* are all filtered.
+
+The bare words are deliberately not. *Thank God*, *God bless*, *God's will*,
+*God's own country*, *Christmas*, a character called *Godfrey* and *Godzilla*
+are all left audible, because muting every mention of God makes a film harder to
+follow — which is the exact problem this list was rebuilt to fix. If you want
+every single one muted, uncomment `god` and `hell` in the optional tier at the
+bottom of `filter.txt`.
+
+One trade-off is worth knowing: an apostrophe counts as a word boundary, so
+`jesus` also matches the possessive *Jesus'* as in *in Jesus' name*. That is left
+alone on purpose, because suppressing it would also stop *shit's* and
+*bastard's*, which matters much more. Comment out the bare `jesus` line if you
+would rather not have it.
 
 ## Other behaviour worth knowing
 
@@ -107,29 +126,38 @@ out of sync and no buffer size will fully fix it.
 
 ## Seeing what the add-on is doing
 
-Every video produces a short report on screen. It stays up until you press OK,
-so it cannot scroll past unseen, and it ends in one of:
+Every video produces a short result at the **top of the screen**. Nothing waits
+for you to press OK, so the film is never interrupted:
 
-- `Result: FILTER ACTIVE - subtitles hidden` — the filter is working
-- `Result: CLEAN` — subtitle read and hidden, no profanity in it
-- `Result: NO SUBTITLE` — the source provides no subtitle, so there is nothing
+> **Profanity Filter:** 18 bad word(s) in 1001 lines - 17 mute(s), subtitles hidden
+
+It is one short line, ending in one of:
+
+- `FILTER ACTIVE` — bad words were found and will be muted
+- `CLEAN` — subtitle read and hidden, no bad words in it
+- `NO SUBTITLE` — the source provides no subtitle, so there is nothing
   to scan (this is the one case where muting is not possible)
-- `Result: SKIPPED (not a video)` — e.g. music
-- `Result: FAILED` — something went wrong; the last line says what
+- `FAILED` — something went wrong; the full report says what
+
+Music is not announced at all — it was never filtered, so a message about it is
+just noise.
 
 Controls live in **Add-ons → My add-ons → Profanity Filter → Configure**:
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| Troubleshooting → Show a report on screen for every video | on | The report itself |
-| Troubleshooting → Report stays on screen until I press OK | on | A bubble alone vanishes before you can read it on a TV |
-| Notifications → Show short notifications too | on | Brief status lines |
+| Troubleshooting → Show a report on screen for every video | on | The result itself |
+| Troubleshooting → Report waits for me to press OK | off | Opt back into the full report in a dialog that stays up until dismissed |
+| Notifications → Show short notifications too | on | Brief "starting" status line |
 
 Turn the report off once things are working.
 
-The same report is also written to `report.txt` in the add-on's data folder
-(`special://profile/addon_data/service.profanity.filter/report.txt`), which
-means you do not have to pull `kodi.log` off a device you cannot easily reach.
+The **full** report — every line, including the player id, the word list size and
+the reason if something failed — is written to `report.txt` in the add-on's data
+folder (`special://profile/addon_data/service.profanity.filter/report.txt`),
+which means you do not have to pull `kodi.log` off a device you cannot easily
+reach. Turn on the *Report waits for me to press OK* setting to see that same
+full report on screen.
 
 ### Tuning
 
@@ -160,9 +188,14 @@ slurs) that are disabled by default — uncomment lines to enable them.
 - **Wildcards are blunt, so the shipped list uses none.** `sh*t` still mutes
   the harmless *shot* and *shut*; `c*nt` still mutes *cent*. If you add a
   wildcard yourself, check it against everyday words before saving.
-- Words with a common innocent meaning (`ass`, `dick`, `cock`, `god`, `hell`,
-  `damn`, `crap`, `anal`) are deliberately **not** active. Uncomment them in
-  the optional tiers if you do want them.
+- **Multi-word entries tolerate punctuation between the words**, because
+  subtitles punctuate exclamations: the entry `oh god` matches *Oh, God* and
+  *Oh... God*. The gap may not contain letters, so `to hell` still does not
+  match *to me about hell*.
+- Words with a common innocent meaning (`ass`, `dick`, `cock`, `crap`, `anal`)
+  are deliberately **not** active. Uncomment them in the optional tiers if you do
+  want them. `god` and `hell` are also opt-in, because the oath forms of those
+  words are already active — see [Religious exclamations](#religious-exclamations-blasphemy).
 
 `filter-full.txt` in the repository root is the original 2,750-word list, kept
 as a reference only. It mutes far too much ordinary dialogue — the header

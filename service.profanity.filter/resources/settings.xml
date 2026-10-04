@@ -2,7 +2,7 @@
 <settings>
     <category label="Troubleshooting">
         <setting id="show_report" type="bool" label="Show a report on screen for every video" default="true"/>
-        <setting id="report_modal" type="bool" label="Report stays on screen until I press OK" default="true"/>
+        <setting id="report_modal" type="bool" label="Report waits for me to press OK (instead of a brief message at the top of the screen)" default="false"/>
     </category>
     <category label="Notifications">
         <setting id="show_notifications" type="bool" label="Show short notifications too" default="true"/>

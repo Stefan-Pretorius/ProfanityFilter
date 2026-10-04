@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.profanity.filter" name="Profanity Filter" version="1.10.0" provider-name="Stefan Pretorius">
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.11.0" provider-name="Stefan Pretorius">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -10,7 +10,14 @@
     <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
     <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Reads the subtitle from the source, hides it from the screen, then mutes the audio exactly when a bad word is spoken. Works with local files and streaming add-ons such as ororo.tv.</description>
     <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
-    <news>1.10.0:
+    <news>1.11.0:
+- The result of each video is now a short message at the top of the screen instead of a dialog you had to press OK on before it would let you carry on watching. It reads like "18 bad word(s) in 1001 lines - 17 mute(s), subtitles hidden". The full report is still written to report.txt, and the old dialog is still available by turning on "Report waits for me to press OK".
+- Music is no longer announced at all - it was never filtered and the message was just noise.
+- New: religious exclamations are now muted. "Oh my God", "My God", "Oh God", "Jesus", "Jesus Christ", "For Christ's sake", "God damn it", "What the hell" and similar oath forms are switched on by default.
+- The religious entries match the OATH FORMS rather than the bare words, so "Thank God", "God bless", "God's will", a character called Godfrey and Christmas are all still audible. Bare "god" and bare "hell" are in the optional tier at the bottom of the word list if you want every one of them muted.
+- Fix: "Oh, God" with a comma was slipping through, because the word list entry "oh god" only matched without punctuation between the words. Multi-word entries now tolerate the punctuation subtitles put in ("Oh, God", "What the hell!", "For Christ's sake.") while still refusing to span real words, so "to hell" cannot match "to me about hell".
+- Known trade-off: an apostrophe counts as a word boundary, so "jesus" also matches the possessive "Jesus'" as in "in Jesus' name". This is left alone on purpose, because suppressing it would also stop "shit's" and "bastard's". Comment out the bare "jesus" line in the word list if you would rather not have it.
+1.10.0:
 - Fix: streaming add-ons such as ororo.tv were not being filtered at all, because the add-on looked for the subtitle address in Kodi's log file. ororo never writes that address to the log unless you switch debug logging on, so on a normal box there was nothing to find. The add-on now asks the ororo add-on for the subtitle itself, using the login you have already saved there, and both ororo front-end domains are tried so a dead mirror does not stop it. Reading Kodi's log is now only a last resort.
 - Fix: too much of the film was being muted. Words with a common innocent meaning are no longer muted by default - "ass" (a donkey), "dick" (a name), "cock" (a bird), "god", "hell", "damn", "crap", "anal", "tits", "pissed", "horny". They have been moved to optional tiers you can switch on from the word list file.
 - Fix: a wildcard entry such as "sh*t" was matching "shot", "shut", "shoes" and "sheet", and "c*nt" was matching "cent", "content" and "count". The shipped word list no longer uses wildcards at all - the real spellings are written out in full - so ordinary dialogue stays audible. If you add wildcards yourself, note that '*' matches exactly one character.

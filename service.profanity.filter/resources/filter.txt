@@ -313,24 +313,68 @@ knobheads
 prickheads
 nutfucker
 nosyarse
+
+# --- Active: religious exclamations (blasphemy) ---------------------------
+# Switched ON deliberately, for households that want these muted.
+#
+# These are the OATH FORMS - the words as an exclamation - rather than the
+# bare words. That matters: muting every "god" would also swallow "thank
+# god", "god bless", "God's own country", a character called Godfrey and so
+# on, which is exactly the over-muting this list was rebuilt to avoid. The
+# phrases below are what actually appears as blasphemy in dialogue.
+#
+# Bare "god" and bare "hell" are in the mild tier further down if you want
+# them too - uncomment them there rather than adding them here.
+#
+# Known trade-off: an apostrophe counts as a word boundary, so "jesus" also
+# matches the possessive "Jesus'" (as in "in Jesus' name"). That is left
+# alone on purpose - suppressing it would also stop "shit's" and "bastard's",
+# which matters much more. If you would rather not mute "Jesus'", comment out
+# the bare "jesus" line and keep "jesus christ" below it.
+oh my god
+ohmygod
+o my god
+my god
+my goodness
+oh god
+o god
+jesus
+jesus christ
+jesus h christ
+christ
+christ almighty
+for jesus
+for jesus sake
+for christ sake
+for christ's sake
+christ sake
+christ's sake
+god damn
+god damn it
+goddamnit
+goddamn
+goddamned
+damn it
+dammit
+damn
+what the hell
+what the heck
+what in hell
+go to hell
+to hell
+oh hell
+oh heck
 # -----------------------------------------------------------------------------
 # --- Optional: mild swear words -----------------------------------------
-# These are real swear words, but they are also everyday English, so they
-# are OFF by default. Enabling them mutes noticeably more of ordinary
-# dialogue ("damn", "hell" and "god" occur very often in normal speech).
-# Uncomment any you want.
-# damn
-# damn it
-# damnit
-# goddamnit
-# goddamn
-# goddamned
-# hell
-# what the hell
-# jesus
-# jesus christ
-# christ
-# oh my god
+# Real swear words that are also everyday English, so they are OFF by default.
+# Enabling them mutes noticeably more of ordinary dialogue.
+#
+# The religious ones ("damn", "jesus", "christ", "oh my god") are ALREADY
+# active in the blasphemy tier above, as oath phrases - you do not need to
+# uncomment anything to get those. Bare "god" and bare "hell" are the two
+# religious words still left off, because they appear in innocent lines such
+# as "thank god", "god bless" and "what the hell, this is fine". Uncomment
+# them if you want every single one muted.
 # crap
 # crappy
 # piss
@@ -343,6 +387,8 @@ nosyarse
 # wot
 # ass
 # asses
+# god
+# hell
 # bugger off
 # --- Optional: sexual and anatomical terms ------------------------------
 # These are anatomical rather than profane, so they are OFF by default.

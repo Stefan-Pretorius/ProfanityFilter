@@ -74,6 +74,10 @@ LOG_SCAN_BYTES = 400000
 # the log file. Keeps the on-screen text readable on a TV.
 REPORT_MAX_LINES = 14
 
+# How long the on-screen one-line result stays visible. Long enough to read on
+# a television, short enough not to sit over the film.
+REPORT_NOTIFY_MS = 6000
+
 # The Ororo TV add-on. Its metadata API is the only reliable way to get a
 # subtitle URL, because Kodi exposes the subtitle under a human-readable name
 # and only writes its URL to the log at *debug* level.
@@ -188,13 +192,25 @@ class Report(object):
     and written to a file. The add-on is often used on a box where getting at
     Kodi's log is impractical, so this is the primary way to find out why
     filtering did or did not happen.
+
+    The full detail is always written to report.txt. On screen we prefer a
+    short one-line summary, because a notification at the top of the screen
+    cannot hold a paragraph and a dialog that waits for OK interrupts the film.
     """
 
     def __init__(self):
         self.lines = []
+        self.summary = ""
+        # Set False for outcomes that should not draw attention at all, e.g.
+        # music, where there is nothing to filter and nothing to say.
+        self.announce = True
 
     def add(self, line):
         self.lines.append(str(line))
+
+    def set_summary(self, text, announce=True):
+        self.summary = str(text)
+        self.announce = announce
 
     def text(self):
         return "\n".join(self.lines)
@@ -334,6 +350,7 @@ class ProfanityFilterPlayer(xbmc.Player):
         except Exception as e:
             log("Unexpected error: {}".format(str(e)), xbmc.LOGERROR)
             report.add("Unexpected error: {}".format(str(e)[:110]))
+            report.set_summary("Filter failed - see report.txt")
         finally:
             self._show_report(report)
 
@@ -352,11 +369,14 @@ class ProfanityFilterPlayer(xbmc.Player):
         log("Waiting 3s for player to initialise...")
         for _ in range(3):
             if self._is_stale(stop_event, generation):
+                # A new video took over; the next run will report on that one.
+                report.set_summary("", announce=False)
                 return
             time.sleep(1)
 
         if not self.isPlaying():
             log("No longer playing - aborting scan.", xbmc.LOGDEBUG)
+            report.set_summary("", announce=False)
             return
 
         # Only now is it safe to ask Kodi what is playing. A video player is not
@@ -365,6 +385,9 @@ class ProfanityFilterPlayer(xbmc.Player):
         if not self._wait_for_video_player(6, stop_event, generation):
             report.add("No video player active - nothing to filter (music?)")
             report.add("Result: SKIPPED (not a video)")
+            # Deliberately silent: music is not something the user needs telling
+            # about every time a track changes.
+            report.set_summary("", announce=False)
             log("No active video player - ignoring this item.", xbmc.LOGWARNING)
             return
 
@@ -374,6 +397,7 @@ class ProfanityFilterPlayer(xbmc.Player):
         if not video_path:
             report.add("Could not read the playing file path")
             report.add("Result: FAILED")
+            report.set_summary("Could not read the playing file path")
             log("Could not determine video path.", xbmc.LOGWARNING)
             return
         report.add("Source {}".format(
@@ -385,8 +409,8 @@ class ProfanityFilterPlayer(xbmc.Player):
         if not word_list:
             report.add("Word list filter.txt is empty")
             report.add("Result: FAILED")
+            report.set_summary("Word list is empty - add words to filter.txt")
             log("Bad-word list is empty - nothing to filter.", xbmc.LOGWARNING)
-            notify("Bad-word list is empty. Add words to filter.txt.")
             return
         patterns = build_patterns(word_list)
         report.add("Word list: {} pattern(s)".format(len(patterns)))
@@ -460,7 +484,7 @@ class ProfanityFilterPlayer(xbmc.Player):
             for reason in seen[-3:]:
                 report.add("  " + reason[:70])
             report.add("Result: NO SUBTITLE (filter inactive)")
-            notify("No subtitle found. Filter inactive for this video.")
+            report.set_summary("No subtitle found - nothing to mute")
             # We asked the source for subtitles, so switch the display back off
             # and keep it off, rather than leaving the source's subtitle on
             # screen for the rest of the video.
@@ -487,7 +511,7 @@ class ProfanityFilterPlayer(xbmc.Player):
         if not matched:
             log("No bad words found in subtitles.")
             report.add("Result: CLEAN (subtitles hidden, nothing to mute)")
-            notify("No bad words found. Subtitles hidden, nothing to mute.")
+            report.set_summary("{} lines read - nothing to mute".format(len(cues)))
             # Nothing to mute, but still keep the subtitles hidden for the
             # whole video.
             self._mute_controller = MuteController([])
@@ -505,7 +529,11 @@ class ProfanityFilterPlayer(xbmc.Player):
         report.add("Mute windows: {} ({}s before, {}s after)".format(
             len(merged), pre_buf, post_buf))
         report.add("Result: FILTER ACTIVE - subtitles hidden")
-        notify("{} word(s) will be muted.".format(len(matched)))
+        # One short line, in the user's language: how many hits, and what
+        # happened. Deliberately not a wall of text - this goes at the top of
+        # the screen while the film is still playing.
+        report.set_summary("{} bad word(s) in {} lines - {} mute(s), subtitles hidden".format(
+            len(matched), len(cues), len(merged)))
 
         # --- Start the real-time filter loop ---
         self._mute_controller = MuteController(merged)
@@ -513,12 +541,14 @@ class ProfanityFilterPlayer(xbmc.Player):
 
     def _show_report(self, report):
         """
-        Put the outcome on screen and in the log.
+        Put the outcome in the log, in report.txt, and on screen.
 
-        The whole report is always written to the add-on's own report.txt so
-        it survives, and the first few lines are shown on screen. When the
-        report is a dialog the user has to acknowledge, it cannot be missed
-        while watching a video.
+        The full report is always written to the add-on's own report.txt so it
+        survives. On screen we normally show a single short line at the top of
+        the screen - a notification does not interrupt the film and cannot be
+        missed the way a dialog waiting for OK can be ignored. The longer
+        report is still available in report.txt, and by turning on
+        "Report waits for me to press OK" you get the whole thing on screen.
         """
         text = report.text()
         log("---- report ----\n{}".format(text))
@@ -536,21 +566,33 @@ class ProfanityFilterPlayer(xbmc.Player):
         if not _get_setting_bool("show_report", True):
             return
 
-        lines = report.lines
-        if len(lines) > REPORT_MAX_LINES:
-            extra = len(lines) - REPORT_MAX_LINES
-            lines = lines[:REPORT_MAX_LINES - 1] + ["... +{} line(s), see report.txt".format(extra)]
-        text = "\n".join(lines)
+        # Nothing to say for something that was never going to be filtered,
+        # such as music. Logging and report.txt still record it.
+        if not report.announce:
+            return
 
         try:
-            if _get_setting_bool("report_modal", True):
-                # Stays on screen until dismissed - a timed bubble disappears
-                # long before you can read it on a TV.
-                xbmcgui.Dialog().ok("Profanity Filter", text)
+            if _get_setting_bool("report_modal", False):
+                lines = report.lines
+                if len(lines) > REPORT_MAX_LINES:
+                    extra = len(lines) - REPORT_MAX_LINES
+                    lines = lines[:REPORT_MAX_LINES - 1] + \
+                        ["... +{} line(s), see report.txt".format(extra)]
+                xbmcgui.Dialog().ok("Profanity Filter", "\n".join(lines))
             else:
+                # Prefer the one-line summary; fall back to the verdict line so
+                # there is always something meaningful on screen.
+                message = report.summary
+                if not message:
+                    for line in reversed(report.lines):
+                        if line.startswith("Result:"):
+                            message = line
+                            break
+                if not message and report.lines:
+                    message = report.lines[-1]
                 xbmcgui.Dialog().notification(
-                    "Profanity Filter", text,
-                    xbmcgui.NOTIFICATION_WARNING, 10000)
+                    "Profanity Filter", message,
+                    xbmcgui.NOTIFICATION_INFO, REPORT_NOTIFY_MS)
         except Exception as e:
             log("Could not show report: {}".format(str(e)))
 

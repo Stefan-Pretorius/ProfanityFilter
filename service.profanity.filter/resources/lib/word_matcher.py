@@ -13,6 +13,13 @@ import re
 import os
 
 
+# What may sit between the words of a multi-word entry. Subtitles punctuate
+# exclamations ("Oh, God", "What the hell!"), so the entry "oh god" has to
+# match that. No word characters are allowed here, which is what stops
+# "to hell" from matching "to me about hell".
+_WORD_GAP = "[\\s,.;:!?'\"()\\-\\[\\]\\u2013\\u2014\\u2026]*\\s+"
+
+
 def load_word_list(filepath):
     # type: (str) -> list
     """
@@ -53,10 +60,17 @@ def _pattern_to_regex(pattern):
         character (e.g. "sh*t" matches "shit", "shut", "shat" but NOT
         "shift", "sheet" or "shout"). This deliberately avoids the greedy
         match-anything behaviour that caused innocent words to be muted.
+      - The words of a multi-word entry may be separated by punctuation as
+        well as spaces, because subtitles punctuate exclamations: "Oh, God"
+        must still be matched by the entry "oh god", and "What the hell!"
+        by "what the hell". The separator class contains no word characters,
+        so "to hell" still cannot match "to me about hell".
       - All other regex metacharacters are escaped.
     """
     # Escape everything, then un-escape our wildcard placeholder
     escaped = re.escape(pattern).replace(r"\*", ".?")
+    # re.escape renders a space as "\ " - widen just that to allow punctuation.
+    escaped = escaped.replace("\\ ", _WORD_GAP)
     return re.compile(r"(?<!\w)" + escaped + r"(?!\w)", re.IGNORECASE)
 
 
