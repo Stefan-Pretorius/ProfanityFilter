@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.profanity.filter" name="Profanity Filter" version="1.11.0" provider-name="Stefan Pretorius">
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.12.0" provider-name="Stefan Pretorius">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -8,9 +8,14 @@
     <platform>all</platform>
     <license>GPL-2.0-or-later</license>
     <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
-    <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Reads the subtitle from the source, hides it from the screen, then mutes the audio exactly when a bad word is spoken. Works with local files and streaming add-ons such as ororo.tv.</description>
+    <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Reads the subtitle from the source, hides it from the screen, then mutes the audio exactly when a bad word is spoken. Works with local files and streaming add-ons such as ororo.tv and Amazon VOD (Prime Video).</description>
     <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
-    <news>1.11.0:
+    <news>1.12.0:
+- Prime Video now works when played through Amazon VOD (plugin.video.amazon-test). That add-on hides the subtitle behind a small proxy of its own and tells Kodi the subtitle is simply "(External)" with no address, so the add-on could not find it: it fell back to searching Kodi's log, matched an unrelated Amazon sign-in address, and failed to download anything. The filter now recognises Amazon VOD, reads the proxy's address and its subtitle requests, and fetches the subtitle from the proxy directly. The proxy authenticates with Amazon itself, so no extra credentials are needed.
+- The filter now switches to the English subtitle instead of whichever track happened to be listed first. Muting is timed off the subtitle, so on a title whose first track was Danish (or French, or German) the filter was reading the wrong language and would have muted at the wrong moments. A track marked "forced" - which only translates the odd line of foreign dialogue - is now used only as a last resort.
+- The on-screen report now names the Amazon VOD proxy when it recognises one, and the working is written to report.txt, so a failure there is easy to see.
+- Note: the Amazon VOD add-on's own "logging" option has to be switched on for its subtitle requests to be visible. The report says so when it looks for a subtitle and finds none.
+1.11.0:
 - The result of each video is now a short message at the top of the screen instead of a dialog you had to press OK on before it would let you carry on watching. It reads like "18 bad word(s) in 1001 lines - 17 mute(s), subtitles hidden". The full report is still written to report.txt, and the old dialog is still available by turning on "Report waits for me to press OK".
 - Music is no longer announced at all - it was never filtered and the message was just noise.
 - New: religious exclamations are now muted. "Oh my God", "My God", "Oh God", "Jesus", "Jesus Christ", "For Christ's sake", "God damn it", "What the hell" and similar oath forms are switched on by default.

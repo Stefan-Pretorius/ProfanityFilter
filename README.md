@@ -3,8 +3,8 @@
 A Kodi **service** add-on that mutes bad words in real time during video
 playback. For every video that starts it:
 
-1. **reads** the subtitle from the source (ororo.tv, other streaming add-ons,
-   or a local file),
+1. **reads** the subtitle from the source (ororo.tv, Amazon VOD / Prime Video,
+   other streaming add-ons, or a local file),
 2. **hides** the subtitle from the screen, and
 3. **mutes** the audio exactly when a bad word is spoken.
 
@@ -17,7 +17,7 @@ Compatible with Kodi 19 (Matrix), 20 (Nexus) and 21 (Omega).
 
 ## How it finds the subtitle
 
-For every video the add-on tries three sources in order of reliability, and
+For every video the add-on tries four sources in order of reliability, and
 tells you on screen which one worked:
 
 1. **The ororo.tv API.** ororo hands Kodi the subtitle under a human-readable
@@ -28,9 +28,26 @@ tells you on screen which one worked:
    login already saved in that add-on, and tries both ororo front-end domains
    so a dead mirror does not stop it.
 2. **The player.** For sources that do hand Kodi a real subtitle address.
-3. **Kodi's log.** Last resort only — see above.
+3. **The Amazon VOD proxy.** Amazon VOD (Prime Video) does not hand Kodi an
+   address either. It fetches the subtitle from Amazon, then serves every track
+   through a small local proxy of its own and tells Kodi only that the track is
+   `(External)`. The add-on reads the proxy's address and the subtitle requests
+   it logs, then asks the proxy for the English subtitle directly. The proxy
+   signs in to Amazon itself, so no extra credentials are needed or stored. This
+   does mean the Amazon VOD add-on's own **`logging`** option has to be on,
+   because that is what makes its subtitle requests visible.
+4. **Kodi's log.** Last resort only — see above.
 
-This is the single biggest reason the filter now works on ororo.tv.
+These are the reasons the filter works on ororo.tv and on Prime Video.
+
+## Which subtitle language is used
+
+The filter always switches to the **English** subtitle rather than whichever
+track happens to be listed first. Muting is timed off the subtitle, so on a
+title whose first track is Danish (or French, or German) reading the wrong
+language means muting at the wrong moments. A track marked *forced* — which
+only translates the odd line of foreign dialogue — is used only as a last
+resort.
 
 ## Why ordinary words are no longer muted
 
@@ -201,6 +218,17 @@ slurs) that are disabled by default — uncomment lines to enable them.
 as a reference only. It mutes far too much ordinary dialogue — the header
 inside that file explains exactly which entries cause it and why.
 
+## Running the tests
+
+The subtitle-discovery helpers (including the Amazon VOD proxy parsing) are
+covered by unit tests that need no Kodi install:
+
+```sh
+python -m unittest discover -s tests
+```
+
+These live in `tests/` and are not part of the released add-on.
+
 ## Releasing a new version
 
 1. Bump `version` in `service.profanity.filter/addon.xml`.
@@ -222,8 +250,9 @@ service.profanity.filter/     # the add-on itself
   addon.xml                   # bump version here
   service.py                  # Kodi service entry point
   resources/filter.txt        # the word list you can edit
-  resources/lib/              # parsers, matcher, mute controller
+  resources/lib/              # parsers, matcher, mute controller, amazon_vod
 repository.profanityfilter/   # repo add-on (installed once)
+tests/                        # pure-Python unit tests (not shipped)
 tools/make_release.py         # builds zips + addons.xml locally
 .github/workflows/release.yml # builds + publishes on every v* tag
 filter-full.txt               # archived 2,750-word list (reference only)

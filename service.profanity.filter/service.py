@@ -51,6 +51,13 @@ from subtitle_parser import parse_subtitle_file, parse_subtitle_content
 from word_matcher import load_word_list, build_patterns, find_matching_cues
 from edl_generator import _build_intervals, _merge_intervals
 from mute_controller import MuteController
+from amazon_vod import (
+    parse_proxy_address,
+    parse_subtitle_requests,
+    choose_subtitle,
+    build_subtitle_url,
+    is_proxied_path,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -83,6 +90,16 @@ REPORT_NOTIFY_MS = 6000
 # and only writes its URL to the log at *debug* level.
 ORORO_ADDON_ID = "plugin.video.ororotv"
 ORORO_API_DOMAINS = ("front.ororo.tv", "front.ororo-mirror.tv")
+
+# The Amazon VOD add-on. It serves every subtitle through a local HTTP proxy of
+# its own and reports the subtitle to Kodi as an opaque "(External)" stream, so
+# the URL has to be recovered from the proxy's address file and log lines. See
+# resources/lib/amazon_vod.py.
+AMAZON_VOD_ADDON_ID = "plugin.video.amazon-test"
+
+# Subtitle languages we would rather have, best first. Muting is timed off the
+# subtitle, so a wrong-language track would mute at the wrong moments.
+PREFERRED_SUBTITLE_LANGS = ("en",)
 
 
 def _ororo_addon():
@@ -404,6 +421,13 @@ class ProfanityFilterPlayer(xbmc.Player):
             "streaming" if video_path.startswith(
                 ("http://", "https://", "plugin://")) else "local file"))
 
+        # Note when we recognised Amazon VOD: its subtitles are only reachable
+        # through the add-on's own local proxy, so it is worth showing that the
+        # filter knows which source it is dealing with.
+        amazon_proxy = self._amazon_vod_proxy_address()
+        if amazon_proxy and is_proxied_path(video_path, amazon_proxy):
+            report.add("Amazon VOD proxy {}".format(amazon_proxy))
+
         # --- Load word list ---
         word_list = load_word_list(WORD_LIST_PATH)
         if not word_list:
@@ -677,7 +701,11 @@ class ProfanityFilterPlayer(xbmc.Player):
            "clarksons farm s01e01 1080p web h264 kogi (External)".
         2. Player JSON-RPC. Works when the source hands Kodi a real URL, e.g.
            for plain HTTP streams.
-        3. Kodi's log. Only works with debug/event logging switched on, so it
+        3. The Amazon VOD add-on's local subtitle proxy. That add-on also hides
+           the URL behind an opaque "(External)" track, but it publishes its
+           proxy address and every subtitle request it serves, which is enough
+           to fetch the .srt from the proxy directly.
+        4. Kodi's log. Only works with debug/event logging switched on, so it
            is a last resort rather than the primary method.
         """
         # Strategy 1: Ororo API
@@ -692,7 +720,13 @@ class ProfanityFilterPlayer(xbmc.Player):
             log("Subtitle URL found via JSON-RPC.")
             return url
 
-        # Strategy 3: Parse the Kodi log
+        # Strategy 3: the Amazon VOD add-on's local subtitle proxy
+        url = self._get_amazon_vod_subtitle_url(video_path)
+        if url:
+            log("Subtitle URL found via the Amazon VOD proxy.")
+            return url
+
+        # Strategy 4: Parse the Kodi log
         url = self._find_subtitle_url_in_log()
         if url:
             log("Subtitle URL found via log scan.")
@@ -925,6 +959,64 @@ class ProfanityFilterPlayer(xbmc.Player):
 
         return ""
 
+    # ------------------------------------------------------------------
+    # Amazon VOD (plugin.video.amazon-test) subtitle discovery
+    # ------------------------------------------------------------------
+    #
+    # The add-on proxies every subtitle through a local HTTP server of its own
+    # and logs one line per request it handles. That log line is the only place
+    # the real subtitle path is visible, because Kodi itself only ever sees an
+    # opaque "(External)" track. See resources/lib/amazon_vod.py for the format.
+
+    def _amazon_vod_proxy_address(self):
+        """
+        Return "host:port" of the Amazon VOD local proxy, or "" if unavailable.
+
+        The add-on writes this file when its service starts; the port is
+        ephemeral, so it is re-read on every lookup rather than cached.
+        """
+        try:
+            path = xbmcvfs.translatePath(
+                "special://profile/addon_data/{}/config/proxyaddress".format(
+                    AMAZON_VOD_ADDON_ID))
+            if not os.path.isfile(path):
+                return ""
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                return parse_proxy_address(handle.read())
+        except Exception as e:
+            log("Could not read the Amazon VOD proxy address: {}".format(str(e)))
+            return ""
+
+    def _get_amazon_vod_subtitle_url(self, video_path=""):
+        """
+        Return the Amazon VOD subtitle URL for the language we want, or "".
+
+        Only log entries written since this video started are considered, so a
+        subtitle left over from a *previous* video can never be reused - that
+        would mute at the wrong times. The subtitle request is logged by the
+        add-on at info level only while its "logging" option is on; with that
+        off the URL has to come from somewhere else.
+        """
+        proxy = self._amazon_vod_proxy_address()
+        if not proxy or not is_proxied_path(video_path, proxy):
+            return ""
+
+        requests = parse_subtitle_requests(self._read_log_region(self._log_offset))
+        if not requests:
+            log("Amazon VOD detected on {}, but no subtitle request has been "
+                "logged yet (is the add-on's logging option on?).".format(proxy))
+            return ""
+
+        chosen = choose_subtitle(requests, preferred=PREFERRED_SUBTITLE_LANGS)
+        if not chosen:
+            return ""
+
+        url = build_subtitle_url(proxy, chosen["escaped"], chosen["filename"])
+        if url:
+            log("Amazon VOD subtitle chosen: {} ({} candidate(s) logged).".format(
+                chosen["filename"], len(requests)))
+        return url
+
     def _find_subtitle_url_in_log(self):
         """
         Parse Kodi's log file to find the most recent subtitle URL.
@@ -952,16 +1044,16 @@ class ProfanityFilterPlayer(xbmc.Player):
         log("No subtitle URL found in the log.")
         return ""
 
-    def _scan_log_for(self, pattern, start_at=None):
+    def _read_log_region(self, start_at=None):
         """
-        Return every subtitle URL in kodi.log.
+        Return the part of kodi.log that should be searched.
 
         *start_at* limits the read to bytes written from that offset onwards
         (None means "read the last LOG_SCAN_BYTES bytes").
         """
         log_path = _log_path()
         if not log_path:
-            return []
+            return ""
 
         try:
             with open(log_path, "r", encoding="utf-8", errors="replace") as f:
@@ -976,12 +1068,16 @@ class ProfanityFilterPlayer(xbmc.Player):
                     begin = start_at
 
                 f.seek(begin)
-                content = f.read()
-
-            return pattern.findall(content)
+                return f.read()
         except OSError as e:
             log("Error reading log for subtitle URL: {}".format(str(e)))
-            return []
+            return ""
+
+    def _scan_log_for(self, pattern, start_at=None):
+        """
+        Return every match of *pattern* in the part of kodi.log to search.
+        """
+        return pattern.findall(self._read_log_region(start_at))
 
     def _download_subtitle(self, url):
         """
@@ -1138,6 +1234,56 @@ class ProfanityFilterPlayer(xbmc.Player):
             tracks = []
         return tracks, bool(result.get("subtitleenabled", False))
 
+    def _choose_subtitle_track_index(self, tracks):
+        """
+        Pick which subtitle track to switch on, preferring our language.
+
+        Muting is timed off the subtitle, so a Danish or French track would
+        mute at the wrong moments. A track flagged "forced" only translates the
+        odd foreign line, so it is the last resort.
+        """
+        best_index = None
+        best_rank = None
+        for position, track in enumerate(tracks):
+            if not isinstance(track, dict):
+                continue
+            language = str(track.get("language") or "").strip().lower()
+            is_preferred = any(
+                language.startswith(want) for want in PREFERRED_SUBTITLE_LANGS)
+            forced = bool(track.get("isforced"))
+            rank = (0 if is_preferred else 1, 1 if forced else 0)
+            if best_rank is None or rank < best_rank:
+                best_rank = rank
+                best_index = track.get("index", position)
+
+        if best_index is None:
+            return tracks[0].get("index", 0) if tracks else 0
+        return best_index
+
+    def _select_preferred_subtitle(self, tracks):
+        """
+        Switch to the preferred-language subtitle if we are not already on it.
+
+        Selecting the language matters for Amazon VOD: the add-on only reveals
+        a subtitle's URL (through its proxy log) once Kodi actually asks for
+        that subtitle, so leaving whatever track Kodi picked could hide the
+        English one. Returns True when a switch was requested.
+        """
+        if not tracks:
+            return False
+
+        index = self._choose_subtitle_track_index(tracks)
+        current = self._player_properties(["currentsubtitle"]).get(
+            "currentsubtitle", {})
+        if isinstance(current, dict) and current.get("index", -1) == index:
+            return False
+
+        if self._set_subtitle(index, enable=True):
+            log("Selected subtitle index {} ({}).".format(
+                index, "/".join(PREFERRED_SUBTITLE_LANGS)))
+            return True
+        return False
+
     def _ensure_subtitles_enabled(self, attempts=3, wait=1.0):
         """
         Ask the source to deliver its subtitle, and wait for it to become
@@ -1163,6 +1309,9 @@ class ProfanityFilterPlayer(xbmc.Player):
             if enabled_now:
                 log("Subtitles already enabled ({} track(s) exposed).".format(
                     len(tracks)))
+                # Subtitles being on is not enough: they may be on in the wrong
+                # language, which would mute at the wrong moments.
+                self._select_preferred_subtitle(tracks)
                 return True, len(tracks)
 
             # Ask the source to start delivering whatever subtitle it has.
@@ -1176,10 +1325,10 @@ class ProfanityFilterPlayer(xbmc.Player):
                 # Re-read the exposed list - it may have grown since enabling.
                 tracks, enabled_now = self._get_subtitle_track_list()
 
-                # Explicitly select the currently-exposed track with enable=true.
+                # Explicitly select the exposed track we want with enable=true.
                 # This is the form that sticks most reliably on streaming.
                 if not enabled_now and tracks:
-                    index = tracks[0].get("index", 0)
+                    index = self._choose_subtitle_track_index(tracks)
                     self._set_subtitle(index, enable=True)
                     log("Selected enabled subtitle index {} (attempt {}).".format(
                         index, attempt))
