@@ -49,15 +49,44 @@ BUNDLED_ZIPS = [os.path.basename(p) for p in make_release.BUNDLED_ADDONS]
 
 AMAZON_VOD_ID = "plugin.video.amazon-test"
 
-# What Amazon VOD needs that does not come from this repository. Kodi's own
-# repository is enabled on every installation, so it resolves these by itself.
-FROM_KODI_OFFICIAL = {
+# Provided by Kodi itself, so published nowhere. Kodi bundles both of these
+# with the application on every platform: script.module.pil is a deliberate
+# placeholder in Kodi's own source tree (xbmc/addons/script.module.pil holds an
+# addon.xml and an icon and no code at all), which is why it appears in no Kodi
+# add-on index even though amazoncaptcha declares a dependency on it.
+FROM_KODI_ITSELF = {
+    "xbmc.addon",       # the add-on manager itself, virtual, always present
     "xbmc.python",
-    "script.module.beautifulsoup4",
-    "script.module.requests",
-    "script.module.pyxbmct",
-    "script.module.inputstreamhelper",
+    "script.module.pil",
 }
+
+# Deliberately not mirrored. plugin.video.ororotv supplies the login, the My
+# Shows lists and the playback for Ororo TV Browse, and is published by ororo
+# itself; this repository has no business redistributing it.
+EXTERNAL = {
+    "plugin.video.ororotv",
+}
+
+
+def addon_version_key(version):
+    """
+    Order two add-on versions the way Kodi orders them.
+
+    Kodi splits a version on '.' and compares the parts numerically, with '~'
+    marking a pre-release (sorts before the bare version) and a '+' suffix
+    sorting after it - which is why "1.3.2+matrix.1" satisfies a requirement of
+    "1.3.1+matrix.1" while a bare "1.3.1" would not.
+    """
+    base, marker, _suffix = version.partition("~")
+    if not marker:
+        base, marker, _suffix = version.partition("+")
+    parts = []
+    for chunk in base.split("."):
+        digits = "".join(character for character in chunk if character.isdigit())
+        parts.append(int(digits) if digits else 0)
+    # "~" (pre-release) < "" (release) < "+" (suffix)
+    rank = {"~": 0, "": 1, "+": 2}.get(marker, 1)
+    return tuple(parts), rank
 
 
 class BuildTests(unittest.TestCase):
@@ -168,31 +197,97 @@ class BuildTests(unittest.TestCase):
                        "script.module.pyautogui"):
             self.assertIn(module, ids)
 
-    def test_every_amazon_vod_requirement_is_resolvable(self):
-        # Catches the real risk of mirroring: an upstream Amazon VOD that grows
-        # a dependency on some further module of Sandmann79's that we have not
-        # vendored. Installing it would then fail with an unmet dependency.
-        version = self.index_versions().get(AMAZON_VOD_ID)
-        self.assertIsNotNone(
-            version, "{} is not in the index, so it cannot be installed "
-                     "from this repository".format(AMAZON_VOD_ID))
-        path = os.path.join(self.pages, AMAZON_VOD_ID,
-                            "{0}-{1}.zip".format(AMAZON_VOD_ID, version))
+    def published_requires(self, addon_id, versions=None):
+        """
+        (requirement id, required version, optional) for one published add-on.
+
+        Read out of the zip this repository actually serves, not out of a
+        source tree, because that zip is what Kodi inspects.
+        """
+        versions = versions or self.index_versions()
+        path = os.path.join(self.pages, addon_id,
+                            "{0}-{1}.zip".format(addon_id, versions[addon_id]))
         with zipfile.ZipFile(path) as archive:
             content = archive.read(
-                "{0}/addon.xml".format(AMAZON_VOD_ID)).decode("utf-8")
+                "{0}/addon.xml".format(addon_id)).decode("utf-8")
         requires = ET.fromstring(content).find("requires")
-        self.assertIsNotNone(requires, "Amazon VOD declares no requirements?")
+        if requires is None:
+            return []
+        return [(node.get("addon"), node.get("version"), node.get("optional"))
+                for node in requires]
 
-        available = set(self.index_ids()) | FROM_KODI_OFFICIAL
-        for node in requires:
-            requirement = node.get("addon")
-            self.assertIn(
-                requirement, available,
-                "{} requires {}, which is neither published here nor known to "
-                "come from Kodi's official repository - vendor it in "
-                "thirdparty/ (see tools/vendor_sandmann.py) or add it to "
-                "FROM_KODI_OFFICIAL".format(AMAZON_VOD_ID, requirement))
+    def test_every_amazon_vod_requirement_is_resolvable(self):
+        # Catches the real risk of mirroring: an upstream Amazon VOD that grows
+        # a dependency on some further module that we have not vendored.
+        # Installing it would then fail with an unmet dependency.
+        versions = self.index_versions()
+        self.assertIn(
+            AMAZON_VOD_ID, versions,
+            "{} is not in the index, so it cannot be installed from this "
+            "repository".format(AMAZON_VOD_ID))
+
+        published = set(versions)
+        for requirement, _version, _optional in self.published_requires(AMAZON_VOD_ID, versions):
+            self.assertTrue(
+                requirement in published or requirement in FROM_KODI_ITSELF,
+                "{} requires {}, which is neither published here nor supplied "
+                "by Kodi itself - vendor it in thirdparty/ (see "
+                "tools/vendor_kodi.py)".format(AMAZON_VOD_ID, requirement))
+
+    def test_the_whole_dependency_tree_is_served_from_here(self):
+        # The point of mirroring the official modules: a box that can reach
+        # stefan-pretorius.github.io and has Kodi installed needs no other host
+        # to install Amazon VOD. Anything neither published here nor bundled by
+        # Kodi must be listed in EXTERNAL with a reason, or the install fails
+        # with the unmet-dependency error this test exists to prevent.
+        versions = self.index_versions()
+        published = set(versions)
+        unresolved = []
+        for addon_id in sorted(published):
+            for requirement, _version, _optional in self.published_requires(addon_id, versions):
+                if requirement in published or requirement in FROM_KODI_ITSELF:
+                    continue
+                if requirement in EXTERNAL:
+                    continue
+                unresolved.append("{} -> {}".format(addon_id, requirement))
+        self.assertEqual(
+            unresolved, [],
+            "these dependencies have no source the box can reach: {}".format(
+                ", ".join(unresolved)))
+
+    def test_external_dependencies_are_really_external(self):
+        # Keeps the allowlist honest: an entry that we started publishing
+        # should be removed from it, not left to mask a mistake.
+        published = set(self.index_versions())
+        for addon_id in EXTERNAL:
+            self.assertNotIn(addon_id, published,
+                             "{} is published here now, so it no longer "
+                             "belongs in EXTERNAL".format(addon_id))
+
+    def test_published_versions_satisfy_every_requirement(self):
+        # Mirroring can also fail the other way round: publishing an older
+        # module than a dependant asks for. Kodi compares the versions itself
+        # and refuses the install, so the published set has to win on its own.
+        versions = self.index_versions()
+        for addon_id in sorted(versions):
+            for requirement, needed, optional in self.published_requires(addon_id, versions):
+                if requirement not in versions or not needed:
+                    continue
+                have = versions[requirement]
+                self.assertGreaterEqual(
+                    addon_version_key(have), addon_version_key(needed),
+                    "{} requires {} {} but this repository publishes {} - "
+                    "Kodi would reject the install".format(
+                        addon_id, requirement, needed, have))
+
+    def test_the_two_vendoring_scripts_agree_on_ownership(self):
+        # Two mirrors of one add-on id would fight over the same filename in
+        # thirdparty/, so vendor_kodi.py must never touch what
+        # vendor_sandmann.py owns, and the two lists must stay in step.
+        import vendor_kodi
+        import vendor_sandmann
+        self.assertEqual(set(vendor_kodi.MIRRORED_BY_VENDOR_SANDMANN),
+                         set(vendor_sandmann.MIRROR_IDS))
 
     def test_index_lists_each_addon_exactly_once(self):
         ids = self.index_ids()

@@ -17,9 +17,11 @@ The repository pointer is still listed in our index as well, so a box that wants
 Amazon VOD updates direct from upstream can have them: Kodi installs the newest
 version offered by any enabled repository.
 
-Only the add-ons Amazon VOD actually declares it needs are mirrored. The rest of
-its dependencies come from Kodi's official repository, which is enabled by
-default, so they are not duplicated here.
+Only the add-ons Amazon VOD actually declares it needs that exist in no other
+index are mirrored here. Its other dependencies come from Kodi itself or from
+Kodi's official repository, and are mirrored by tools/vendor_kodi.py instead -
+kept in a separate script so that it is always clear which upstream each file
+in thirdparty/ came from.
 
 Run from the repository root:
     python3 tools/vendor_sandmann.py
@@ -43,7 +45,8 @@ DATADIR = "https://raw.githubusercontent.com/Sandmann79/xbmc/master/packages-py3
 
 # Amazon VOD itself, plus the three modules it requires that exist nowhere else.
 # (script.module.beautifulsoup4, script.module.requests, script.module.pyxbmct
-# and script.module.inputstreamhelper are in Kodi's official repository.)
+# and script.module.inputstreamhelper are in Kodi's official repository, and
+# are mirrored by tools/vendor_kodi.py.)
 MIRROR_IDS = (
     "plugin.video.amazon-test",
     "script.module.amazoncaptcha",

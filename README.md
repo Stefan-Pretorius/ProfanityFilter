@@ -113,7 +113,7 @@ would rather not have it.
    `https://stefan-pretorius.github.io/ProfanityFilter/`
    Give it a name (e.g. `ProfanityFilter`).
 3. **Settings → Add-ons → Install from zip file** → browse to that source → the
-   listing shows real filenames (e.g. `repository.profanityfilter-1.0.3.zip`) →
+   listing shows real filenames (e.g. `repository.profanityfilter-1.0.4.zip`) →
    select it and install.
 4. **Install from repository → Profanity Filter Repository → Profanity
    Filter → Install.**
@@ -128,8 +128,9 @@ no second URL to find or keep track of.
 **Amazon VOD (Prime Video)**
 
 5. **Install from repository → Profanity Filter Repository → Video add-ons →
-   Amazon VOD → Install.** Kodi fetches the four remaining modules it needs
-   from its own repository by itself, so this is a single click.
+   Amazon VOD → Install.** Every dependency is served by this repository or
+   ships inside Kodi, so this is a single click with nothing else to install
+   first.
 6. Open Amazon VOD once and sign in with the account that holds the Prime
    subscription (the phone-number account, not the e-mail-only one), then switch
    on its **logging** option — the filter needs that to find the subtitle. See
@@ -293,8 +294,9 @@ git push --tags
 
 The workflow builds the zips, attaches them to a GitHub Release — the filter,
 this repository add-on, and every bundled add-on (Amazon VOD and its modules,
-Amazon VOD's repository pointer, and Ororo TV Browse) — and updates the GitHub
-Pages repository (Kodi then updates automatically).
+Amazon VOD's repository pointer, the Kodi modules Amazon VOD needs, and Ororo
+TV Browse) — and updates the GitHub Pages repository (Kodi then updates
+automatically).
 
 To see what will be published first, run it locally:
 
@@ -313,10 +315,12 @@ service.profanity.filter/     # the add-on itself
 repository.profanityfilter/   # repo add-on (installed once)
 thirdparty/                   # bundled add-ons, discovered as thirdparty/*.zip:
                               #   Amazon VOD + its 3 private modules, Sandmann79's
-                              #   repository pointer, Ororo TV Browse
+                              #   repository pointer, the 11 Kodi modules Amazon VOD
+                              #   needs, Ororo TV Browse
 tests/                        # pure-Python unit tests (not shipped)
 tools/make_release.py         # builds zips + addons.xml locally
 tools/vendor_sandmann.py      # refreshes the mirrored Amazon VOD files
+tools/vendor_kodi.py          # refreshes the mirrored Kodi modules
 .github/workflows/release.yml # builds + publishes on every v* tag
 filter-full.txt               # archived 2,750-word list (reference only)
 ```

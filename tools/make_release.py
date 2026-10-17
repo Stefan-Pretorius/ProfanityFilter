@@ -50,11 +50,19 @@ PAGES = os.path.join(DIST, "gh-pages")
 #     tools/vendor_sandmann.py.
 #   * plugin.video.ororotv.browse - developed in its own repository,
 #     https://github.com/Stefan-Pretorius/OroroBrowse.
+#   * Kodi's own official modules that Amazon VOD needs -
+#     script.module.beautifulsoup4, .requests, .pyxbmct, .inputstreamhelper
+#     and their dependencies. Originally left to Kodi's official repository,
+#     which turned out not to be enough: a box reported Amazon VOD as
+#     uninstallable with a missing dependency, and the official repository is
+#     the only part of that dependency tree this repository did not serve.
+#     Refresh with tools/vendor_kodi.py.
 #
-# Amazon VOD's other dependencies (script.module.beautifulsoup4, .requests,
-# .pyxbmct, .inputstreamhelper) deliberately come from Kodi's official
-# repository, which is enabled by default. Duplicating those here would let a
-# stale copy of ours be installed in place of a newer official one.
+# The published set is checked in tests/test_release_packaging.py against two
+# rules Kodi itself applies: every requirement of every add-on listed in the
+# index must either be listed there too, be shipped with Kodi (xbmc.python,
+# xbmc.addon, script.module.pil), or be listed in that test's EXTERNAL set with
+# a reason - and the version published here must satisfy the version required.
 def bundled_addons(thirdparty_dir=THIRDPARTY_DIR):
     """
     Every add-on zip vendored in thirdparty/, as paths, sorted.

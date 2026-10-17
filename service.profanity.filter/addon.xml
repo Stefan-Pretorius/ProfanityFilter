@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.profanity.filter" name="Profanity Filter" version="1.12.3" provider-name="Stefan Pretorius">
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.12.4" provider-name="Stefan Pretorius">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -10,7 +10,10 @@
     <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
     <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Reads the subtitle from the source, hides it from the screen, then mutes the audio exactly when a bad word is spoken. Works with local files and streaming add-ons such as ororo.tv and Amazon VOD (Prime Video).</description>
     <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
-    <news>1.12.3:
+    <news>1.12.4:
+- Amazon VOD's remaining dependencies are now served from this repository as well. Kodi's official modules (beautifulsoup4, requests, pyxbmct, inputstreamhelper) and everything they need in turn - soupsieve, certifi, chardet, idna, urllib3, pysocks and six - are published here, unchanged, at Kodi's current official versions. A box reported Amazon VOD as uninstallable with a missing dependency, and Kodi's official repository was the only part of that dependency tree this repository was not serving. Installing from this repository now needs no other host: everything either ships with Kodi itself or comes from here. A box that can reach Kodi's mirrors is unaffected, because Kodi takes the newest version offered and these are never newer than official.
+- No change to the filtering itself.
+1.12.3:
 - Amazon VOD (Prime Video) now installs straight from this repository. The add-on itself and the three modules it needs that exist only in Sandmann79's index are published here, so it appears under Profanity Filter Repository - Video add-ons and no longer depends on Kodi managing to fetch a second, nested repository. Sandmann79's repository add-on is still listed as well, so a box that wants Amazon VOD updates direct from upstream can have them.
 - No change to the filtering itself.
 1.12.2:
