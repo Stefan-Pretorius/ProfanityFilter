@@ -7,13 +7,14 @@ Builds distributable artifacts for the Profanity Filter Kodi add-on:
   dist/service.profanity.filter-<version>.zip   (the add-on, installable zip)
   dist/repository.profanityfilter-<version>.zip (repository add-on, install once)
   dist/repository.sandmann79.plugins-*.zip      (vendored; see thirdparty/)
+  dist/plugin.video.ororotv.browse-*.zip        (vendored; see thirdparty/)
   dist/gh-pages/addons.xml / addons.xml.md5     (repository index)
   dist/gh-pages/...                             (ready-to-upload GitHub Pages tree)
 
 Everything in dist/*.zip also becomes a GitHub Release asset, and the whole
 dist/gh-pages tree is published to the gh-pages branch. A Kodi box can
-therefore install the filter, this repository add-on, and Amazon VOD (via
-Sandmann79's repository add-on, vendored in thirdparty/) from one URL.
+therefore install the filter, this repository add-on, Amazon VOD (via
+Sandmann79's repository add-on) and Ororo TV Browse from one URL.
 
 Run from the repository root:
     python3 tools/make_release.py
@@ -34,11 +35,17 @@ ADDON_XML = os.path.join(ADDON_DIR, "addon.xml")
 DIST = os.path.join(ROOT, "dist")
 PAGES = os.path.join(DIST, "gh-pages")
 
-# Add-ons published byte for byte instead of being built here, so that Amazon
-# VOD can be installed from this repository alone. Provenance and licence for
-# each file is recorded in thirdparty/README.md.
+# Add-ons published byte for byte instead of being built here.
+#   * Sandmann79's repository add-on is what installs and updates Amazon VOD.
+#   * Ororo TV Browse is developed in its own repository
+#     (https://github.com/Stefan-Pretorius/OroroBrowse) and re-published here
+#     so that a Kodi box needs a single source URL for everything. To release
+#     a new version of it: build and tag over there, copy the new zip into
+#     thirdparty/, and update the filename below.
+# Provenance and licence for each file is recorded in thirdparty/README.md.
 BUNDLED_ADDONS = (
     os.path.join(THIRDPARTY_DIR, "repository.sandmann79.plugins-1.0.4.zip"),
+    os.path.join(THIRDPARTY_DIR, "plugin.video.ororotv.browse-1.0.0.zip"),
 )
 
 # The repository add-on is also copied to the site root: Kodi does not look

@@ -1,8 +1,43 @@
-# Vendored third-party add-ons
+# Vendored add-ons
 
 These zips are not built from source in this repository. They are copied
-verbatim from their upstream release and re-published, unchanged, so that a
-Kodi box can install everything it needs from this repository alone.
+verbatim from elsewhere and re-published, unchanged, so that a Kodi box can
+install everything it needs from this repository alone.
+
+One of them is this author's own add-on, developed in a separate repository;
+the other is third-party. Provenance and licence are recorded for both below.
+
+## plugin.video.ororotv.browse-1.0.0.zip
+
+| | |
+|---|---|
+| What it is | **Ororo TV Browse** — a Netflix-style browser for the ororo.tv catalogue (poster walls, featured rows, genres, A–Z, years, rating bands, combined search). |
+| Source | https://github.com/Stefan-Pretorius/OroroBrowse (its own repository, built and tagged there) |
+| Upstream release | https://github.com/Stefan-Pretorius/OroroBrowse/releases |
+| Size | 21,910 bytes |
+| SHA-256 | `f9af3847d1df953c248ed3cb84ef1c0936274e65b8e869296d63ce466b9ec8af` |
+| Licence | GPL-3.0-or-later |
+
+It is **not** third-party code. It lives here so that one source URL on a Kodi
+box covers the whole set — filter, Amazon VOD and this browser — instead of
+needing a second repository add-on installed by hand. It keeps its own
+repository so it can also be published on its own later.
+
+It declares a dependency on `plugin.video.ororotv` 4.0.0 or newer. That add-on
+is not in this repository, so it has to be installed first (it is what supplies
+the login, the My Shows lists and the actual video playback); on a box where it
+is missing, Kodi will report an unmet dependency rather than install a browser
+with nothing to browse.
+
+### Updating this file
+
+1. In `C:\OroroBrowse`, run `python -m unittest discover -s tests`, then
+   `python tools/make_zip.py`.
+2. Copy the new `dist/plugin.video.ororotv.browse-<version>.zip` over the old
+   file here and delete the old one.
+3. Update this table's version, size, SHA-256 and the filename in
+   `BUNDLED_ADDONS` in `tools/make_release.py`.
+4. Re-run `python tools/make_release.py` and check the listing.
 
 ## repository.sandmann79.plugins-1.0.4.zip
 

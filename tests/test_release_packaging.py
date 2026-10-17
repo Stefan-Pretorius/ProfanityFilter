@@ -73,6 +73,12 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(tree.getroot().tag, "addons")
         return sorted(a.get("id") for a in tree.getroot().findall("addon"))
 
+    def index_entries(self):
+        """Every (id, version) Kodi is told it can install."""
+        tree = ET.parse(os.path.join(self.pages, "addons.xml"))
+        return [(a.get("id"), a.get("version"))
+                for a in tree.getroot().findall("addon")]
+
     def index_versions(self):
         tree = ET.parse(os.path.join(self.pages, "addons.xml"))
         return {a.get("id"): a.get("version")
@@ -127,11 +133,14 @@ class BuildTests(unittest.TestCase):
 
     # -- the index -------------------------------------------------------
 
-    def test_index_lists_the_filter_the_repository_and_amazon_vods_repository(self):
+    def test_index_lists_every_addon_we_advertise(self):
         ids = self.index_ids()
         self.assertIn(SERVICE_ID, ids)
         self.assertIn(REPO_ID, ids)
+        # Amazon VOD's repository, so Prime Video is installable from here.
         self.assertIn("repository.sandmann79.plugins", ids)
+        # Our own browse add-on, developed in its own repository.
+        self.assertIn("plugin.video.ororotv.browse", ids)
 
     def test_index_lists_each_addon_exactly_once(self):
         ids = self.index_ids()
@@ -169,20 +178,21 @@ class BuildTests(unittest.TestCase):
             make_release.pages_zip_path("/datadir", SERVICE_ID, SERVICE_VERSION),
             expected)
 
-    def test_zips_sit_where_kodi_looks_for_them(self):
+    def test_every_addon_in_the_index_has_its_zip_where_kodi_looks(self):
         # Regression test. Kodi builds "<datadir>/<id>/<id>-<version>.zip";
         # publishing under "<id>/<version>/" makes the add-on uninstallable.
-        for addon_id, version in ((SERVICE_ID, SERVICE_VERSION),
-                                  (REPO_ID, REPO_VERSION),
-                                  ("repository.sandmann79.plugins", "1.0.4")):
+        # Driven by the index itself, so a newly added add-on is covered
+        # without this test needing to change.
+        entries = self.index_entries()
+        self.assertTrue(entries)
+        for addon_id, version in entries:
             expected = os.path.join(self.pages, addon_id,
                                     "{0}-{1}.zip".format(addon_id, version))
             self.assertTrue(os.path.isfile(expected),
                             "Kodi would fetch {} but it was not published".format(expected))
 
     def test_no_zip_is_hidden_in_a_version_subdirectory(self):
-        for addon_id, version in ((SERVICE_ID, SERVICE_VERSION),
-                                  (REPO_ID, REPO_VERSION)):
+        for addon_id, version in self.index_entries():
             stale = os.path.join(self.pages, addon_id, version)
             self.assertFalse(os.path.exists(stale),
                              "{} uses the old <id>/<version>/ layout Kodi never requests".format(stale))
@@ -208,9 +218,7 @@ class BuildTests(unittest.TestCase):
             body = fh.read()
         self.assertIn('href="{0}-{1}.zip"'.format(REPO_ID, REPO_VERSION), body)
 
-        for addon_id, version in ((SERVICE_ID, SERVICE_VERSION),
-                                  (REPO_ID, REPO_VERSION),
-                                  ("repository.sandmann79.plugins", "1.0.4")):
+        for addon_id, version in self.index_entries():
             listing = os.path.join(self.pages, addon_id, "index.html")
             self.assertTrue(os.path.isfile(listing), "{} is missing".format(listing))
             with open(listing, "r", encoding="utf-8") as fh:
