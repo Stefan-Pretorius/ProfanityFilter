@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="repository.profanityfilter" name="Profanity Filter Repository" version="1.0.0" provider-name="Stefan Pretorius">
+<addon id="repository.profanityfilter" name="Profanity Filter Repository" version="1.0.1" provider-name="Stefan Pretorius">
   <requires>
     <import addon="xbmc.addon" version="1.0.0"/>
   </requires>
@@ -12,6 +12,6 @@
   </extension>
   <extension point="xbmc.addon.metadata">
     <summary>Repository for the Profanity Filter add-on</summary>
-    <description>Provides automatic updates for the Profanity Filter Kodi add-on. Install this repository once, then updates appear in Kodi's add-on manager.</description>
+    <description>Provides automatic updates for the Profanity Filter Kodi add-on, and also carries Sandmann79's repository add-on so that Amazon VOD (Prime Video) can be installed from the same place. Install this repository once, then updates and the Amazon VOD add-on appear in Kodi's add-on manager.</description>
   </extension>
 </addon>

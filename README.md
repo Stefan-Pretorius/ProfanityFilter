@@ -113,12 +113,31 @@ would rather not have it.
    `https://stefan-pretorius.github.io/ProfanityFilter/`
    Give it a name (e.g. `ProfanityFilter`).
 3. **Settings → Add-ons → Install from zip file** → browse to that source → the
-   listing shows real filenames (e.g. `repository.profanityfilter-1.0.0.zip`) →
+   listing shows real filenames (e.g. `repository.profanityfilter-1.0.1.zip`) →
    select it and install.
 4. **Install from repository → Profanity Filter Repository → Profanity
    Filter → Install.**
 
-No phone, no USB, no shared folders.
+That is the filter done. No phone, no USB, no shared folders.
+
+### Amazon VOD (Prime Video) from the same place
+
+The repository also carries **Sandmann79's repository add-on**, which is what
+installs and updates Amazon VOD, so there is no second URL to find:
+
+5. **Settings → Add-ons → Install from repository → Profanity Filter
+   Repository → Add-on repository → Sandmann79s Repository → Install.**
+6. **Install from repository → Sandmann79s Repository → Video add-ons →
+   Amazon VOD → Install.** Kodi fetches the eight modules it needs by itself.
+7. Open Amazon VOD once and sign in with the account that holds the Prime
+   subscription (the phone-number account, not the e-mail-only one), then switch
+   on its **logging** option — the filter needs that to find the subtitle. See
+   [How it finds the subtitle](#how-it-finds-the-subtitle).
+
+Amazon VOD's own code is deliberately **not** copied here: the add-on above is a
+766-byte pointer to Sandmann79's live index, so Amazon VOD keeps updating from
+upstream. [thirdparty/README.md](thirdparty/README.md) records its provenance,
+checksum and licence.
 
 ## Updates
 
@@ -190,7 +209,9 @@ full report on screen.
 
 Grab `service.profanity.filter-<version>.zip` from the
 [Releases](../../releases) page and install it via
-**Settings → Add-ons → Install from zip file**.
+**Settings → Add-ons → Install from zip file**. The same page carries
+`repository.sandmann79.plugins-<version>.zip`, if you would rather install the
+Amazon VOD repository from a file than from the repository above.
 
 ## Customising the word list
 
@@ -227,21 +248,33 @@ covered by unit tests that need no Kodi install:
 python -m unittest discover -s tests
 ```
 
-These live in `tests/` and are not part of the released add-on.
+These live in `tests/` and are not part of the released add-on. They also cover
+the release packaging, including the one rule that decides whether Kodi can
+install anything from this repository at all: an add-on zip has to be published
+at `<repository>/<addon id>/<addon id>-<version>.zip`.
 
 ## Releasing a new version
 
-1. Bump `version` in `service.profanity.filter/addon.xml`.
+1. Bump `version` in `service.profanity.filter/addon.xml`, and in
+   `repository.profanityfilter/addon.xml` if the repository add-on itself changed
+   (for example to carry another repository).
 2. Commit and push.
 3. Tag and push — everything else is automated:
 
 ```sh
-git tag v1.10.0
+git tag v1.12.1
 git push --tags
 ```
 
-The workflow builds the zips, attaches them to a GitHub Release, and updates
-the GitHub Pages repository (Kodi then updates automatically).
+The workflow builds the zips, attaches them to a GitHub Release — the filter,
+this repository add-on, and Sandmann79's repository add-on — and updates the
+GitHub Pages repository (Kodi then updates automatically).
+
+To see what will be published first, run it locally:
+
+```sh
+python tools/make_release.py     # writes dist/ and dist/gh-pages/
+```
 
 ## Repository layout
 
@@ -252,11 +285,21 @@ service.profanity.filter/     # the add-on itself
   resources/filter.txt        # the word list you can edit
   resources/lib/              # parsers, matcher, mute controller, amazon_vod
 repository.profanityfilter/   # repo add-on (installed once)
+thirdparty/                   # vendored add-ons: Sandmann79's repository (see its README)
 tests/                        # pure-Python unit tests (not shipped)
 tools/make_release.py         # builds zips + addons.xml locally
 .github/workflows/release.yml # builds + publishes on every v* tag
 filter-full.txt               # archived 2,750-word list (reference only)
 ```
+
+### How the repository is laid out for Kodi
+
+Kodi derives an add-on's download address as
+`<datadir>/<addon id>/<addon id>-<version>.zip` (this is also how the official
+Kodi mirrors are arranged). A zip placed anywhere else — for example under a
+`<addon id>/<version>/` sub-folder — is never requested, and the install or
+update fails with no clear reason. `tests/test_release_packaging.py` pins this
+rule down so it cannot regress.
 
 ## License
 

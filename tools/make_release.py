@@ -6,8 +6,14 @@ Builds distributable artifacts for the Profanity Filter Kodi add-on:
 
   dist/service.profanity.filter-<version>.zip   (the add-on, installable zip)
   dist/repository.profanityfilter-<version>.zip (repository add-on, install once)
-  dist/addons.xml / addons.xml.md5              (repository index)
+  dist/repository.sandmann79.plugins-*.zip      (vendored; see thirdparty/)
+  dist/gh-pages/addons.xml / addons.xml.md5     (repository index)
   dist/gh-pages/...                             (ready-to-upload GitHub Pages tree)
+
+Everything in dist/*.zip also becomes a GitHub Release asset, and the whole
+dist/gh-pages tree is published to the gh-pages branch. A Kodi box can
+therefore install the filter, this repository add-on, and Amazon VOD (via
+Sandmann79's repository add-on, vendored in thirdparty/) from one URL.
 
 Run from the repository root:
     python3 tools/make_release.py
@@ -23,13 +29,22 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ADDON_DIR = os.path.join(ROOT, "service.profanity.filter")
 REPO_DIR = os.path.join(ROOT, "repository.profanityfilter")
+THIRDPARTY_DIR = os.path.join(ROOT, "thirdparty")
 ADDON_XML = os.path.join(ADDON_DIR, "addon.xml")
 DIST = os.path.join(ROOT, "dist")
 PAGES = os.path.join(DIST, "gh-pages")
 
-# Repository add-on id/version (kept in sync with repository.profanityfilter/addon.xml)
-REPO_ID = "repository.profanityfilter"
-REPO_VERSION = "1.0.0"
+# Add-ons published byte for byte instead of being built here, so that Amazon
+# VOD can be installed from this repository alone. Provenance and licence for
+# each file is recorded in thirdparty/README.md.
+BUNDLED_ADDONS = (
+    os.path.join(THIRDPARTY_DIR, "repository.sandmann79.plugins-1.0.4.zip"),
+)
+
+# The repository add-on is also copied to the site root: Kodi does not look
+# there when installing from the repository, but it is the "install from zip
+# file" URL the README gives out.
+ROOT_PUBLISHED_ID = "repository.profanityfilter"
 
 
 def apache_listing(title, names):
@@ -75,12 +90,49 @@ def write_directory_listings(root, title):
             fh.write(apache_listing(page_title, names))
 
 
+def parse_addon_meta(content):
+    """The (id, version) pair declared in an addon.xml document."""
+    addon_id = re.search(r'<addon id="([^"]+)"', content).group(1)
+    version = re.search(r'<addon[^>]*\sversion="([^"]+)"', content).group(1)
+    return addon_id, version
+
+
 def read_addon_meta(path=ADDON_XML):
     with open(path, "r", encoding="utf-8") as fh:
         content = fh.read()
-    addon_id = re.search(r'<addon id="([^"]+)"', content).group(1)
-    version = re.search(r'<addon[^>]*\sversion="([^"]+)"', content).group(1)
+    addon_id, version = parse_addon_meta(content)
     return addon_id, version, content
+
+
+def read_bundled_meta(path):
+    """
+    (id, version, addon.xml) for an add-on zip shipped unchanged.
+
+    The archive is the source of truth. A bundled add-on must be published
+    under exactly the id and version it declares, because that pair is what
+    Kodi turns into the filename it goes looking for.
+    """
+    with zipfile.ZipFile(path) as archive:
+        candidates = [n for n in archive.namelist()
+                      if os.path.basename(n) == "addon.xml"]
+        if not candidates:
+            raise SystemExit("{} contains no addon.xml".format(path))
+        content = archive.read(min(candidates, key=len)).decode("utf-8")
+    addon_id, version = parse_addon_meta(content)
+    return addon_id, version, content
+
+
+def pages_zip_path(root, addon_id, version):
+    """
+    Where Kodi looks for an add-on's zip inside a repository.
+
+    Kodi derives the download URL in CAddonInfoBuilder::Generate as
+    "<datadir>/<addon id>/<addon id>-<version>.zip" -- the same layout the
+    official Kodi mirrors use. Note there is no "<addon id>/<version>/"
+    directory in that path, so publishing a zip there leaves it invisible:
+    Kodi asks for a file that does not exist and the install or update fails.
+    """
+    return os.path.join(root, addon_id, "{0}-{1}.zip".format(addon_id, version))
 
 
 def zip_dir(src_dir, out_zip):
@@ -96,57 +148,78 @@ def zip_dir(src_dir, out_zip):
                 zf.write(full, os.path.join(root_name, rel))
 
 
-def write_addons_xml(addon_content):
-    body = addon_content.split("?>", 1)[-1].strip()
-    xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<addons>\n{body}\n</addons>\n'.format(
-        body=body
-    )
+def write_addons_xml(addon_contents):
+    """
+    Build the repository index from one or more addon.xml documents.
+
+    Each body is the addon.xml without its XML declaration, concatenated
+    inside a single <addons> root - the layout Kodi's AddonsFromRepoXML
+    expects.
+    """
+    bodies = [c.split("?>", 1)[-1].strip() for c in addon_contents]
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        "<addons>\n{0}\n</addons>\n"
+    ).format("\n".join(bodies))
     checksum = hashlib.md5(xml.encode("utf-8")).hexdigest()
     return xml, checksum
 
 
 def main():
-    addon_id, version, addon_content = read_addon_meta()
+    addon_id, version, addon_content = read_addon_meta(ADDON_XML)
     print("Building {} {}...".format(addon_id, version))
 
     if os.path.isdir(DIST):
         shutil.rmtree(DIST)
     os.makedirs(PAGES)
 
-    # 1. Add-on zip (release asset + repository payload)
-    addon_zip = os.path.join(DIST, "{id}-{ver}.zip".format(id=addon_id, ver=version))
-    zip_dir(ADDON_DIR, addon_zip)
-    print("  ->", addon_zip)
+    # 1. Add-on zips. Ours are built from source; bundled ones are copied
+    #    unchanged. Each entry is (id, version, addon.xml, dist zip).
+    published = []
+    for src_dir in (ADDON_DIR, REPO_DIR):
+        meta_id, meta_version, content = read_addon_meta(
+            os.path.join(src_dir, "addon.xml"))
+        out_zip = os.path.join(DIST, "{0}-{1}.zip".format(meta_id, meta_version))
+        zip_dir(src_dir, out_zip)
+        published.append((meta_id, meta_version, content, out_zip))
+        print("  ->", out_zip)
 
-    # 2. Repository add-on zip (one-time install)
-    repo_zip = os.path.join(DIST, "{id}-{ver}.zip".format(id=REPO_ID, ver=REPO_VERSION))
-    zip_dir(REPO_DIR, repo_zip)
-    print("  ->", repo_zip)
+    for bundled in BUNDLED_ADDONS:
+        meta_id, meta_version, content = read_bundled_meta(bundled)
+        out_zip = os.path.join(DIST, os.path.basename(bundled))
+        shutil.copy2(bundled, out_zip)
+        published.append((meta_id, meta_version, content, out_zip))
+        print("  ->", out_zip, "(bundled, unchanged)")
 
-    # 3. Repository index
-    # Written as raw bytes with explicit LF endings. Kodi verifies addons.xml
-    # against addons.xml.md5, so the checksum has to be taken over exactly the
-    # bytes that get published - writing in text mode would let Windows turn
-    # the newlines into CRLF and the checksum would never match.
-    xml, checksum = write_addons_xml(addon_content)
+    # 2. Repository index, listing every add-on Kodi should be able to
+    #    install. Written as raw bytes with explicit LF endings: Kodi verifies
+    #    addons.xml against addons.xml.md5, so the checksum has to be taken
+    #    over exactly the bytes that get published - writing in text mode
+    #    would let Windows turn the newlines into CRLF and the checksum would
+    #    never match.
+    xml, checksum = write_addons_xml([entry[2] for entry in published])
     with open(os.path.join(PAGES, "addons.xml"), "wb") as fh:
         fh.write(xml.encode("utf-8"))
     with open(os.path.join(PAGES, "addons.xml.md5"), "w", encoding="ascii", newline="") as fh:
         fh.write(checksum)
 
-    # 4. GitHub Pages payload
-    pages_addon_dir = os.path.join(PAGES, addon_id, version)
-    os.makedirs(pages_addon_dir)
-    shutil.copy2(addon_zip, os.path.join(pages_addon_dir, os.path.basename(addon_zip)))
-    shutil.copy2(repo_zip, os.path.join(PAGES, os.path.basename(repo_zip)))
+    # 3. GitHub Pages payload, each zip at the path Kodi actually requests.
+    for meta_id, meta_version, _content, out_zip in published:
+        target = pages_zip_path(PAGES, meta_id, meta_version)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy2(out_zip, target)
+        print("  ->", target)
 
-    # 5. Kodi-browsable directory listings (index.html in every directory)
+    for meta_id, _version, _content, out_zip in published:
+        if meta_id == ROOT_PUBLISHED_ID:
+            shutil.copy2(out_zip, os.path.join(PAGES, os.path.basename(out_zip)))
+            print("  ->", os.path.join(PAGES, os.path.basename(out_zip)))
+
+    # 4. Kodi-browsable directory listings (index.html in every directory)
     write_directory_listings(PAGES, "Profanity Filter Repository")
 
     print("  ->", os.path.join(PAGES, "addons.xml"))
     print("  ->", os.path.join(PAGES, "addons.xml.md5"))
-    print("  ->", os.path.join(PAGES, "service.profanity.filter/{}/".format(version)))
-    print("  ->", os.path.join(PAGES, os.path.basename(repo_zip)))
     print("Done.")
 
 
