@@ -1,0 +1,521 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addons>
+<addon id="service.profanity.filter" name="Profanity Filter" version="1.12.4" provider-name="Stefan Pretorius">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.service" library="service.py"/>
+  <extension point="xbmc.addon.metadata">
+    <platform>all</platform>
+    <license>GPL-2.0-or-later</license>
+    <summary lang="en_GB">Subtitle-based profanity filter for Kodi</summary>
+    <description lang="en_GB">Automatically mutes bad words during video playback using subtitle timing. Reads the subtitle from the source, hides it from the screen, then mutes the audio exactly when a bad word is spoken. Works with local files and streaming add-ons such as ororo.tv and Amazon VOD (Prime Video).</description>
+    <disclaimer lang="en_GB">Mute accuracy depends on subtitle timing.</disclaimer>
+    <news>1.12.4:
+- Amazon VOD's remaining dependencies are now served from this repository as well. Kodi's official modules (beautifulsoup4, requests, pyxbmct, inputstreamhelper) and everything they need in turn - soupsieve, certifi, chardet, idna, urllib3, pysocks and six - are published here, unchanged, at Kodi's current official versions. A box reported Amazon VOD as uninstallable with a missing dependency, and Kodi's official repository was the only part of that dependency tree this repository was not serving. Installing from this repository now needs no other host: everything either ships with Kodi itself or comes from here. A box that can reach Kodi's mirrors is unaffected, because Kodi takes the newest version offered and these are never newer than official.
+- No change to the filtering itself.
+1.12.3:
+- Amazon VOD (Prime Video) now installs straight from this repository. The add-on itself and the three modules it needs that exist only in Sandmann79's index are published here, so it appears under Profanity Filter Repository - Video add-ons and no longer depends on Kodi managing to fetch a second, nested repository. Sandmann79's repository add-on is still listed as well, so a box that wants Amazon VOD updates direct from upstream can have them.
+- No change to the filtering itself.
+1.12.2:
+- The repository also carries Ororo TV Browse (plugin.video.ororotv.browse), the Netflix-style browser for ororo.tv. It is the same add-on as the one in its own repository; it is published here so that a single source URL on a Kodi box covers everything - this filter, Amazon VOD and Ororo TV Browse. It needs the Ororo TV add-on itself installed and signed in, because that is what supplies the login, the My Shows lists and the playback.
+- No change to the filtering itself.
+1.12.1:
+- Packaging fix, no change to the filtering itself. "Install from repository" and automatic updates could not work: Kodi downloads an add-on from a repository at "&lt;repository&gt;/&lt;addon id&gt;/&lt;addon id&gt;-&lt;version&gt;.zip", but the release build published the zip one folder deeper, under "&lt;addon id&gt;/&lt;version&gt;/", where Kodi never looks. Kodi asked for a file that was not there, so the install failed. The zip is now published where Kodi expects it, which is also where the official Kodi repositories put theirs.
+- The repository now also carries Sandmann79's repository add-on, so Amazon VOD (Prime Video) can be installed from Kodi's own add-on browser - one source, no second URL to find.
+1.12.0:
+- Prime Video now works when played through Amazon VOD (plugin.video.amazon-test). That add-on hides the subtitle behind a small proxy of its own and tells Kodi the subtitle is simply "(External)" with no address, so the add-on could not find it: it fell back to searching Kodi's log, matched an unrelated Amazon sign-in address, and failed to download anything. The filter now recognises Amazon VOD, reads the proxy's address and its subtitle requests, and fetches the subtitle from the proxy directly. The proxy authenticates with Amazon itself, so no extra credentials are needed.
+- The filter now switches to the English subtitle instead of whichever track happened to be listed first. Muting is timed off the subtitle, so on a title whose first track was Danish (or French, or German) the filter was reading the wrong language and would have muted at the wrong moments. A track marked "forced" - which only translates the odd line of foreign dialogue - is now used only as a last resort.
+- The on-screen report now names the Amazon VOD proxy when it recognises one, and the working is written to report.txt, so a failure there is easy to see.
+- Note: the Amazon VOD add-on's own "logging" option has to be switched on for its subtitle requests to be visible. The report says so when it looks for a subtitle and finds none.
+1.11.0:
+- The result of each video is now a short message at the top of the screen instead of a dialog you had to press OK on before it would let you carry on watching. It reads like "18 bad word(s) in 1001 lines - 17 mute(s), subtitles hidden". The full report is still written to report.txt, and the old dialog is still available by turning on "Report waits for me to press OK".
+- Music is no longer announced at all - it was never filtered and the message was just noise.
+- New: religious exclamations are now muted. "Oh my God", "My God", "Oh God", "Jesus", "Jesus Christ", "For Christ's sake", "God damn it", "What the hell" and similar oath forms are switched on by default.
+- The religious entries match the OATH FORMS rather than the bare words, so "Thank God", "God bless", "God's will", a character called Godfrey and Christmas are all still audible. Bare "god" and bare "hell" are in the optional tier at the bottom of the word list if you want every one of them muted.
+- Fix: "Oh, God" with a comma was slipping through, because the word list entry "oh god" only matched without punctuation between the words. Multi-word entries now tolerate the punctuation subtitles put in ("Oh, God", "What the hell!", "For Christ's sake.") while still refusing to span real words, so "to hell" cannot match "to me about hell".
+- Known trade-off: an apostrophe counts as a word boundary, so "jesus" also matches the possessive "Jesus'" as in "in Jesus' name". This is left alone on purpose, because suppressing it would also stop "shit's" and "bastard's". Comment out the bare "jesus" line in the word list if you would rather not have it.
+1.10.0:
+- Fix: streaming add-ons such as ororo.tv were not being filtered at all, because the add-on looked for the subtitle address in Kodi's log file. ororo never writes that address to the log unless you switch debug logging on, so on a normal box there was nothing to find. The add-on now asks the ororo add-on for the subtitle itself, using the login you have already saved there, and both ororo front-end domains are tried so a dead mirror does not stop it. Reading Kodi's log is now only a last resort.
+- Fix: too much of the film was being muted. Words with a common innocent meaning are no longer muted by default - "ass" (a donkey), "dick" (a name), "cock" (a bird), "god", "hell", "damn", "crap", "anal", "tits", "pissed", "horny". They have been moved to optional tiers you can switch on from the word list file.
+- Fix: a wildcard entry such as "sh*t" was matching "shot", "shut", "shoes" and "sheet", and "c*nt" was matching "cent", "content" and "count". The shipped word list no longer uses wildcards at all - the real spellings are written out in full - so ordinary dialogue stays audible. If you add wildcards yourself, note that '*' matches exactly one character.
+- Better coverage of real profanity: ~275 active entries now, including the spelling variants and subtitled forms ("fukker", "mfucker", "sh1t", "b!tch", "mothafucker") that the previous list missed.
+- The keyword lists inside the add-on are unchanged: subtitles are still read, hidden, and then muted.
+1.9.2:
+- Fix: streaming add-ons such as ororo.tv were rejected outright before the subtitle was even looked for. The add-on treated "this source exposes no subtitle track" as "this video has no subtitle", but external subtitles are served as a URL that Kodi downloads without ever reporting a track - which is exactly the case the subtitle search exists to handle. The subtitle is now always searched for, and the track count is only reported as information.
+1.9.1:
+- Fix: the add-on stopped working on the Google Streamer in 1.9.0. Version 1.9.0 asked Kodi whether a video was playing from inside the playback callback, which is not safe there, and quietly gave up on the video when the answer was not yet available. The check now happens in the background, retries while the player registers itself, and never skips a real video.
+- You now get a report on screen for every video saying exactly what happened, whether the filter engaged or why it did not. It stays on screen until you press OK, so it cannot scroll past unseen. Nothing is silent any more.
+- The report is also saved to report.txt in the add-on's data folder, so you no longer need to extract Kodi's log from the device to see what went wrong.
+- The "Show detailed failure diagnostics" setting is now "Troubleshooting - Show a report on screen for every video", and is on by default. Turn it off once things are working.
+1.9.0:
+- The add-on now always follows the same three steps for every video: read the subtitle from the source, hide the subtitle from the screen, then mute the bad words. Subtitles are hidden as soon as the data has been read, whether or not any bad words were found.
+- Fixes the filter not activating on streaming add-ons such as ororo.tv. The add-on now always requests the subtitle from the source and always waits for it to arrive, instead of skipping that wait when subtitles happened to be switched on already.
+- Fixes scanning the wrong subtitle: only log entries written since the current video started playing are considered, so a subtitle URL left over from a previous video can no longer be used instead of this one.
+- Fixes the filter being skipped entirely when you stop one video and start another quickly.
+- Muting and the subtitle re-hide now run in a single loop, so they can no longer interfere with each other on streaming sources.
+- Non-video playback (music) is ignored.
+- Removed scene skipping and all of its settings; this add-on is now focused purely on filtering profanity.
+1.8.1:
+- Fix subtitles re-appearing during filtering on streaming add-ons (e.g. ororo on a Google Streamer): after the add-on reads the subtitle data and hides the text, some sources re-enable subtitles on their own. The add-on now keeps watching the subtitle state for the rest of the session and re-hides them every second, so profanity never flickers back onto the screen.
+1.8.0:
+- Automatic scene-skipping data: the add-on can now fetch scene-skip timestamps by movie from a hosted JSON file (no files needed on the device, works on a Google Streamer / Android TV box). The video is identified from Kodi's metadata (Player.GetItem) for streaming, or from the file/URL for local content. Set the URL in Settings (defaults to the repo's published skipdata.json) and add entries keyed by movie title, plus an optional "default" entry.
+1.7.1:
+- Fix "tried to force subtitles on but none became active" on streaming sources (e.g. Google Streamer + ororo): enabling an external subtitle is asynchronous, so the add-on now re-requests it inside the retry loop and re-selects the exposed track by index with enable=true until it becomes active, instead of giving up after a single attempt.
+- On Android/Streamer devices where a source never exposes a subtitle track while subtitles are off, the on-screen diagnostic now clearly distinguishes "a track was exposed but wouldn't stick" from "the source provides no subtitle for this video", so the cause is easy to understand.
+1.7.0:
+- New: scene skipping. When enabled, the add-on jumps past flagged scenes (scary, intense, mature) instead of only muting. Scene windows are read from simple offline skip lists you edit yourself, no subscription or external service needed.
+- Skip lists live in special://profile/addon_data/service.profanity.filter/skiplists/ and match by movie name (e.g. "Avatar (2009).skip.txt") or global.skip.txt for every video. Format is one "start end" per line (mm:ss / h:mm:ss / plain seconds). A bundled example is included.
+- New settings: "Enable scene skipping" and "Skip-start lookahead (seconds)".
+1.6.1:
+- Fix streaming subtitle discovery: subtitle URLs with signed query strings (e.g. ororo WebVTT tokens) are now kept intact so downloads no longer fail with auth errors.
+- Fall back to scanning the full Kodi log when the subtitle URL falls outside the recent log tail.
+- Adds a "Show detailed failure diagnostics" setting that shows the exact failing stage on screen (player id, whether subtitles became active, URL/download/parse results) so issues are easy to report without reading Kodi's log.
+1.6.0:
+- Subtitles are no longer shown on screen. The filter works with subtitles switched off: local files are read from disk directly (never displayed), and streaming subtitles are only enabled long enough to capture the timing data, then hidden again.
+- The "Hide subtitles after scanning" setting has been removed, profanity text is always kept off the screen.
+1.5.0:
+- Fix false positives caused by overly greedy wildcards (sh*t no longer matches "shift", c*nt no longer matches "count").
+- Ship a curated word list. Innocent/common words (god, hell, abuse, etc.) are no longer muted by default.
+- Use the active video player for subtitle discovery instead of a hardcoded player id.</news>
+  </extension>
+</addon>
+<addon id="repository.profanityfilter" name="Profanity Filter Repository" version="1.0.4" provider-name="Stefan Pretorius">
+  <requires>
+    <import addon="xbmc.addon" version="1.0.0"/>
+  </requires>
+  <extension point="xbmc.addon.repository" name="Profanity Filter Repository">
+    <dir>
+      <info compressed="false">https://stefan-pretorius.github.io/ProfanityFilter/addons.xml</info>
+      <checksum>https://stefan-pretorius.github.io/ProfanityFilter/addons.xml.md5</checksum>
+      <datadir zip="true">https://stefan-pretorius.github.io/ProfanityFilter/</datadir>
+    </dir>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary>Repository for the Profanity Filter add-on</summary>
+    <description>Provides automatic updates for the Profanity Filter Kodi add-on, and also carries Amazon VOD (Prime Video) together with every module it needs, and Ororo TV Browse, the Netflix-style browser for ororo.tv. Install this repository once, then all of them appear in Kodi's add-on manager and install with a single click: nothing else has to be fetched from Kodi's official repository.</description>
+  </extension>
+</addon>
+<addon id="plugin.video.amazon-test"
+       name="Amazon VOD"
+       version="1.2.3+matrix.1"
+       provider-name="Sandmann79, Varstahl">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+    <import addon="script.module.beautifulsoup4" version="4.6.3+matrix.1"/>
+    <import addon="script.module.mechanicalsoup" version="0.12.0+matrix.1"/>
+    <import addon="script.module.pyxbmct" version="1.3.1+matrix.1"/>
+    <import addon="script.module.inputstreamhelper" version="0.4.4+matrix.1"/>
+    <import addon="script.module.requests" version="2.22.0+matrix.1"/>
+    <import addon="script.module.pyautogui" version="0.9.49+matrix.1"/>
+    <import addon="script.module.amazoncaptcha" version="0.5.11+matrix.1"/>
+  </requires>
+  <extension point="xbmc.python.pluginsource"
+             library="default.py">
+	<provides>video</provides>
+  </extension>
+  <extension point="xbmc.service" library="service.py" start="startup" />
+  <extension point="xbmc.addon.metadata">
+    <platform>all</platform>
+    <reuselanguageinvoker>true</reuselanguageinvoker>
+    <summary lang="en_GB">Amazon Prime Video Streaming</summary>
+    <summary lang="de_DE">Amazon Prime Instant Video</summary>
+    <summary lang="es_ES">Vídeo a demanda de Amazon Prime</summary>
+    <summary lang="ua_UA">Потокове відео Amazon Prime</summary>
+    <description lang="en_GB">Movies and Television Shows for Prime Members</description>
+    <description lang="de_DE">Filme und Serien für Amazon Prime Mitglieder</description>
+    <description lang="es_ES">Películas y Series para Miembros de Amazon Prime</description>
+    <description lang="ua_UA">Фільми та серіали для підписників Prime</description>
+    <disclaimer lang="en_GB">Some parts of this addon may not be legal in your country of residence - please check with your local laws before installing.</disclaimer>
+    <disclaimer lang="de_DE">Möglicherweise sind einge Teile dieses Addons in Ihrem Land illegal, Sie sollten dies unbedingt vor der Installation überprüfen.</disclaimer>
+    <disclaimer lang="es_ES">Algunas partes de este addon pueden que sean illegales en tu país de residencia - por favor, compruébalo antes de la instalación.</disclaimer>
+    <disclaimer lang="ua_UA">Деякі частини цього плагіну можуть бути незаконні в країні вашого проживання - будь ласка, перевірте це перед встановленням.</disclaimer>
+    <forum>http://www.kodinerds.net/index.php/Thread/44211-Release-Amazon-Prime-Instant-Video</forum>
+    <source>https://github.com/Sandmann79/xbmc</source>
+    <license>GPL-3.0-or-later</license>
+    <assets>
+      <icon>icon.png</icon>
+      <fanart>fanart.png</fanart>
+      <clearlogo>clearlogo.png</clearlogo>
+    </assets>
+  </extension>
+</addon>
+<addon id="plugin.video.ororotv.browse"
+       name="Ororo TV Browse"
+       version="1.0.0"
+       provider-name="Stefan Pretorius">
+    <requires>
+        <import addon="xbmc.python" version="3.0.0"/>
+        <import addon="plugin.video.ororotv" version="4.0.0"/>
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="default.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <summary lang="en_GB">Browse Ororo TV like Netflix</summary>
+        <description lang="en_GB">A Netflix-style browser for the Ororo.tv catalogue.
+
+Featured rows for your home screen (new releases, top rated, popular, by genre), poster walls with full metadata, A-Z, year and rating navigation, and combined search across films and TV shows.
+
+It reuses the account you already signed in with in the Ororo TV add-on, shares its My Shows and favourites lists, and plays through that add-on so subtitles and the Profanity Filter keep working.</description>
+        <disclaimer lang="en_GB">This add-on does not host or distribute any content. It reads the catalogue of the Ororo TV add-on and requires an active Ororo.tv subscription.</disclaimer>
+        <platform>all</platform>
+        <license>GPL-3.0-or-later</license>
+        <source>https://github.com/Stefan-Pretorius/OroroBrowse</source>
+        <assets>
+            <icon>icon.png</icon>
+            <fanart>fanart.png</fanart>
+        </assets>
+    </extension>
+</addon>
+<addon id="repository.sandmann79.plugins" name="Sandmann79s Repository" version="1.0.4" provider-name="Sandmann79">
+    <extension point="xbmc.addon.repository" name="Sandmann79s Repository">
+        <dir>
+            <info compressed="false">https://raw.githubusercontent.com/Sandmann79/xbmc/master/packages/addons.xml</info>
+            <checksum>https://raw.githubusercontent.com/Sandmann79/xbmc/master/packages/addons.xml.md5</checksum>
+            <datadir zip="true">https://raw.githubusercontent.com/Sandmann79/xbmc/master/packages/</datadir>
+        </dir>
+        <dir minversion="18.9.0">
+            <info compressed="false">https://raw.githubusercontent.com/Sandmann79/xbmc/master/packages-py3/addons.xml</info>
+            <checksum>https://raw.githubusercontent.com/Sandmann79/xbmc/master/packages-py3/addons.xml.md5</checksum>
+            <datadir zip="true">https://raw.githubusercontent.com/Sandmann79/xbmc/master/packages-py3/</datadir>
+        </dir>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <summary>Various Addons for Kodi</summary>
+        <description></description>
+        <disclaimer></disclaimer>
+        <platform>all</platform>
+    </extension>
+</addon>
+<addon id="script.module.amazoncaptcha"
+       name="amazoncaptcha"
+       version="0.5.11+matrix.1"
+       provider-name="Anatolii Maliarov">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+    <import addon="script.module.pil" version="1.1.7"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Pillow-based solver for Amazon's text captcha</summary>
+    <description lang="en_GB">Pillow-based solver for Amazon's text captcha</description>
+    <license>MIT License</license>
+    <platform>all</platform>
+    <website>https://github.com/a-maliarov/amazoncaptcha</website>
+    <source>https://github.com/a-maliarov/amazoncaptcha</source>
+  </extension>
+</addon>
+<addon id="script.module.beautifulsoup4" name="beautifulsoup4" version="4.12.2" provider-name="Leonard Richardson">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+    <import addon="script.module.soupsieve" version="2.4.1"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Screen-scraping library</summary>
+    <description lang="en_GB">Beautiful Soup is a library that makes it easy to scrape information from web pages. It sits atop an HTML or XML parser, providing Pythonic idioms for iterating, searching, and modifying the parse tree.</description>
+    <license>MIT</license>
+    <platform>all</platform>
+    <website>https://www.crummy.com/software/BeautifulSoup/</website>
+	<source>https://code.launchpad.net/beautifulsoup</source>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+<addon id="script.module.certifi" name="certifi" version="2023.5.7" provider-name="Certifi">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Certifi: Python SSL Certificates</summary>
+    <description lang="en_GB">Certifi is a carefully curated collection of Root Certificates for validating the trustworthiness of SSL certificates while verifying the identity of TLS hosts. It has been extracted from the Requests project.</description>
+    <license>MPL-2.0</license>
+    <website>https://github.com/certifi/python-certifi</website>
+    <source>https://github.com/certifi/python-certifi</source>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+<addon id="script.module.chardet" name="chardet" version="5.1.0" provider-name="Character Encoding Detector">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">The Universal Character Encoding Detector</summary>
+    <description lang="en_GB">The Universal Character Encoding Detector</description>
+    <license>LGPL-2.1</license>
+    <platform>all</platform>
+    <website>https://chardet.readthedocs.io/</website>
+    <source>https://github.com/chardet/chardet</source>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+<addon id="script.module.idna" name="idna" version="3.10.0" provider-name="Kim Davies">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Internationalized Domain Names for Python</summary>
+    <description lang="en_GB">Internationalized Domain Names for Python</description>
+    <license>BSD-3-Clause</license>
+    <platform>all</platform>
+    <website>https://github.com/kjd/idna</website>
+    <source>https://github.com/kjd/idna</source>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+<addon id="script.module.inputstreamhelper" name="InputStream Helper" version="0.8.6" provider-name="emilsvennesson, dagwieers, mediaminister, horstle">
+  <requires>
+    <!--py3 compliant-->
+    <import addon="xbmc.python" version="3.0.0"/>
+    <import addon="script.module.pysocks" version="1.6.8" optional="true"/>
+  </requires>
+  <!-- This is needed to get an add-on icon -->
+  <extension point="xbmc.python.script" library="default.py">
+    <provides>executable</provides>
+  </extension>
+  <extension point="xbmc.python.module" library="lib"/>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="de_DE">Kodi InputStream und DRM Wiedergabe einfach gemacht</summary>
+    <summary lang="el_GR">Βοηθός Inputstream για το Kodi και εύκολη αναπαραγωγή DRM</summary>
+    <summary lang="en_GB">Kodi InputStream and DRM playback made easy</summary>
+    <summary lang="es_ES">Kodi InputStream y reproducción DRM echa fácil</summary>
+    <summary lang="fr_FR">La lecture Kodi InputStream et DRM en toute simplicité</summary>
+    <summary lang="hr_HR">Kodi InputStream olakšava reprodukciju DRM zaštićenog sadržaja</summary>
+    <summary lang="sv_SE">Kodi InputStream och DRM-uppspelning på ett enkelt sätt</summary>
+    <description lang="de_DE">Dieses einfache Kodi-Modul macht das Leben für Addon Entwickler einfacher, die auf InputStream basierte Addons und DRM Wiedergabe angewiesen sind.</description>
+    <description lang="el_GR">Μία απλή μονάδα για το Kodi η οποία διευκολύνει την ζωή των προγραμματιστών οι οποίοι εξαρτώνται από τα πρόσθετσ InputStream και αναπαραγωγή τύπου DRM.</description>
+    <description lang="en_GB">A simple Kodi module that makes life easier for add-on developers relying on InputStream based add-ons and DRM playback.</description>
+    <description lang="es_ES">Un módulo Kodi simple que hace la vida más fácil para los desarrolladores de complementos que dependen de complementos basados en InputStream y reproducción de DRM.</description>
+    <description lang="fr_FR">Un simple module Kodi qui simplifie la vie des développeurs de modules complémentaires en s’appuyant sur des modules complémentaires basés sur InputStream et sur la lecture de DRM.</description>
+    <description lang="hr_HR">Jednostavan Kodi modul koji olakšava razvijanje dodataka koji se temelje na InputStream dodatku i reprodukciji DRM zaštićenog sadržaja.</description>
+    <description lang="ru_RU">Простой модуль для Kodi, который облегчает жизнь разработчикам дополнений, с использованием InputStream дополнений и воспроизведения DRM контента.</description>
+    <description lang="sv_SE">En enkel Kodi-modul som underlättar livet för tilläggsutvecklare som förlitar sig på InputStream-baserade tillägg och DRM-uppspelning.</description>
+    <news>
+v0.8.6 (2026-08-24)
+- Enable Widevine CDM installation from repo on 64-bit ARM
+
+v0.8.5 (2025-12-29)
+- Fix Widevine CDM installation on 32-bit ARM
+
+v0.8.4 (2025-11-04)
+- Fix Widevine CDM installation on ARM hardware
+
+v0.8.3 (2025-10-10)
+- Fix removing older Widevine CDM backups
+
+v0.8.2 (2025-09-25)
+- Fix Widevine CDM installation on 32-bit Windows
+
+v0.8.1 (2025-09-22)
+- Fix Widevine CDM installation on ARM hardware
+
+v0.8.0 (2025-09-19)
+- Fix Widevine CDM installation on Windows, Linux and Macintosh
+- Add support for LG webOS
+
+v0.7.0 (2024-09-24)
+- Get rid of distutils dependency
+- Option to get Widevine from lacros image
+- Remove support for Python 2 and pre-Matrix Kodi versions
+
+v0.6.1 (2023-05-30)
+- Performance improvements on Linux ARM
+- This will be the last release for Python 2 i.e. Kodi 18 (Leia) and below. The next release will require Python 3 and Kodi 19 (Matrix) or higher.
+
+v0.6.0 (2023-05-03)
+- Initial support for AARCH64 Linux
+- Initial support for AARCH64 Macs
+- New option to install a specific version on most platforms
+
+v0.5.10 (2022-04-18)
+- Fix automatic submission of release
+- Update German translation
+- Fix update_frequency setting
+- Fix install_from
+- Improve/Fix Widevine extraction from Chrome OS images
+
+v0.5.9 (2022-03-22)
+- Update Croatian translation
+- Replace deprecated LooseVersion
+- Fix http_get decode error
+- Option to install Widevine from specified source
+    </news>
+    <platform>all</platform>
+    <license>MIT</license>
+    <website>https://github.com/emilsvennesson/script.module.inputstreamhelper/wiki</website>
+    <source>https://github.com/emilsvennesson/script.module.inputstreamhelper</source>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+<addon id="script.module.mechanicalsoup"
+	name="MechanicalSoup"
+	version="1.0.0+matrix.1"
+	provider-name="Matthew Hickford, Dan Hemberger, Matthieu Moy">
+	<requires>
+		<import addon="xbmc.python" version="3.0.0"/>
+		<import addon="script.module.requests" version="2.22.0+matrix.1"/>
+		<import addon="script.module.beautifulsoup4" version="4.6.3+matrix.1"/>
+		<import addon="script.module.six" version="1.14.0+matrix.1"/>
+	</requires>
+	<extension point="xbmc.python.module" library="lib" />
+	<extension point="xbmc.addon.metadata">
+		<summary lang="en_GB">A Python library for automating interaction with websites.</summary>
+		<forum></forum>
+		<website>https://mechanicalsoup.readthedocs.io/</website>
+		<license>MIT</license>
+		<platform>all</platform>
+		<source>https://github.com/MechanicalSoup/MechanicalSoup</source>
+        <assets>
+            <icon>icon.png</icon>
+        </assets>
+	</extension>
+</addon>
+<addon id="script.module.pyautogui"
+	name="PyAutoGUI"
+	version="0.9.51+matrix.1"
+	provider-name="Al Sweigart">
+	<requires>
+		<import addon="xbmc.python" version="3.0.0"/>
+	</requires>
+	<extension point="xbmc.python.module" library="lib" />
+	<extension point="xbmc.addon.metadata">
+		<summary lang="en_GB">PyAutoGUI is a cross-platform GUI automation Python module for human beings. Used to programmatically control the mouse and keyboard.</summary>
+		<forum></forum>
+		<website>https://pyautogui.readthedocs.io/</website>
+		<license>see LICENSE.txt</license>
+		<platform>all</platform>
+		<source>https://github.com/asweigart/pyautogui</source>
+        <assets>
+            <icon>icon.png</icon>
+        </assets>
+	</extension>
+</addon>
+<addon id="script.module.pysocks" name="PySocks" version="1.7.0+matrix.1" provider-name="anorov">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib"/>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">A SOCKS proxy client and wrapper for Python</summary>
+    <description lang="en_GB">PySocks lets you send traffic through SOCKS and HTTP proxy servers. It is a modern fork of SocksiPy with bug fixes and extra features.</description>
+    <platform>all</platform>
+    <language></language>
+    <license>BSD</license>
+    <forum></forum>
+    <website>https://github.com/Anorov/PySocks</website>
+    <source>https://github.com/Anorov/PySocks</source>
+    <assets>
+      <icon>icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+<addon id="script.module.pyxbmct"
+   name="PyXBMCt"
+   version="1.3.2+matrix.1"
+   provider-name="Roman V.M.">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <platform>all</platform>
+    <summary lang="en_GB">PyXBMCt UI framework</summary>
+    <description lang="en_GB">PyXBMCt is a mini-framework for simple XBMC addon UI buliding. It is similar to PyQt and provides parent windows, a number of UI controls (widgets) and a grid layout manager to place controls.</description>
+    <license>GPL-3.0-only</license>
+    <forum>https://forum.kodi.tv/showthread.php?tid=174859</forum>
+    <website>http://romanvm.github.io/script.module.pyxbmct/</website>
+    <email>roman1972@gmail.com</email>
+    <source>https://github.com/romanvm/script.module.pyxbmct</source>
+    <news>1.3.2:
+- Drop Python 2 compatibility</news>
+    <assets>
+      <icon>icon.png</icon>
+    </assets>
+  </extension>  
+</addon>
+<addon id="script.module.requests" name="requests" version="2.31.0" provider-name="Python Software Foundation">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+    <import addon="script.module.certifi" version="2023.5.7"/>
+    <import addon="script.module.chardet" version="5.1.0"/>
+    <import addon="script.module.idna" version="3.4.0"/>
+    <import addon="script.module.urllib3" version="1.26.16+matrix.1"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Requests is an elegant and simple HTTP library for Python, built for human beings.</summary>
+    <description lang="en_GB">Requests is an elegant and simple HTTP library for Python, built for human beings.</description>
+    <license>Apache-2.0</license>
+    <platform>all</platform>
+    <website>https://requests.readthedocs.io/</website>
+    <source>https://github.com/psf/requests</source>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+<addon id="script.module.six" name="six" version="1.16.0+matrix.1" provider-name="Benjamin Peterson">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0" />
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Python 2 and 3 compatibility utilities</summary>
+    <description lang="en_GB">Python 2 and 3 compatibility utilities</description>
+    <license>MIT</license>
+    <platform>all</platform>
+    <website>https://github.com/benjaminp/six</website>
+    <source>https://github.com/benjaminp/six</source>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+<addon id="script.module.soupsieve" name="soupsieve" version="2.4.1" provider-name="Isaac Muse">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">A modern CSS selector implementation for Beautiful Soup.</summary>
+    <description lang="en_GB">A modern CSS selector implementation for Beautiful Soup.</description>
+    <license>MIT</license>
+    <platform>all</platform>
+    <website>https://facelessuser.github.io/soupsieve/</website>
+    <source>https://github.com/facelessuser/soupsieve</source>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+<addon id="script.module.urllib3" name="urllib3" version="2.2.3" provider-name="urllib3">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0" />
+  </requires>
+  <extension point="xbmc.python.module" library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">urllib3 is a powerful, user-friendly HTTP client for Python</summary>
+    <description lang="en_GB">urllib3 is a powerful, user-friendly HTTP client for Python. Much of the Python ecosystem already uses urllib3 and you should too. urllib3 brings many critical features that are missing from the Python standard libraries</description>
+    <license>MIT</license>
+    <platform>all</platform>
+    <website>https://urllib3.readthedocs.io/</website>
+    <source>https://github.com/urllib3/urllib3</source>
+    <assets>
+      <icon>resources/icon.png</icon>
+    </assets>
+  </extension>
+</addon>
+</addons>
