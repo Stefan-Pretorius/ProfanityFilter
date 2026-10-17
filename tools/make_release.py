@@ -6,15 +6,14 @@ Builds distributable artifacts for the Profanity Filter Kodi add-on:
 
   dist/service.profanity.filter-<version>.zip   (the add-on, installable zip)
   dist/repository.profanityfilter-<version>.zip (repository add-on, install once)
-  dist/repository.sandmann79.plugins-*.zip      (vendored; see thirdparty/)
-  dist/plugin.video.ororotv.browse-*.zip        (vendored; see thirdparty/)
+  dist/<bundled add-on>-<version>.zip           (copied from thirdparty/)
   dist/gh-pages/addons.xml / addons.xml.md5     (repository index)
   dist/gh-pages/...                             (ready-to-upload GitHub Pages tree)
 
 Everything in dist/*.zip also becomes a GitHub Release asset, and the whole
 dist/gh-pages tree is published to the gh-pages branch. A Kodi box can
-therefore install the filter, this repository add-on, Amazon VOD (via
-Sandmann79's repository add-on) and Ororo TV Browse from one URL.
+therefore install the filter, this repository add-on, Amazon VOD (Prime Video)
+and Ororo TV Browse from one URL, with no nested repository to find.
 
 Run from the repository root:
     python3 tools/make_release.py
@@ -35,18 +34,43 @@ ADDON_XML = os.path.join(ADDON_DIR, "addon.xml")
 DIST = os.path.join(ROOT, "dist")
 PAGES = os.path.join(DIST, "gh-pages")
 
-# Add-ons published byte for byte instead of being built here.
-#   * Sandmann79's repository add-on is what installs and updates Amazon VOD.
-#   * Ororo TV Browse is developed in its own repository
-#     (https://github.com/Stefan-Pretorius/OroroBrowse) and re-published here
-#     so that a Kodi box needs a single source URL for everything. To release
-#     a new version of it: build and tag over there, copy the new zip into
-#     thirdparty/, and update the filename below.
-# Provenance and licence for each file is recorded in thirdparty/README.md.
-BUNDLED_ADDONS = (
-    os.path.join(THIRDPARTY_DIR, "repository.sandmann79.plugins-1.0.4.zip"),
-    os.path.join(THIRDPARTY_DIR, "plugin.video.ororotv.browse-1.0.0.zip"),
-)
+# Add-ons published byte for byte instead of being built here. Every zip in
+# thirdparty/ is published as-is, so adding or refreshing one is a file
+# operation rather than an edit here. Provenance, versions and licences are
+# recorded in thirdparty/README.md.
+#
+#   * repository.sandmann79.plugins - a 766-byte pointer that lets Amazon VOD
+#     update from upstream.
+#   * plugin.video.amazon-test (Amazon VOD) and the three modules it requires
+#     that exist nowhere but Sandmann79's index - script.module.amazoncaptcha,
+#     script.module.mechanicalsoup, script.module.pyautogui. Mirrored so that
+#     Amazon VOD installs directly from this repository: a nested repository
+#     fetch is not something Kodi reliably performs, and when it does not, the
+#     nested repository simply looks empty. Refresh with
+#     tools/vendor_sandmann.py.
+#   * plugin.video.ororotv.browse - developed in its own repository,
+#     https://github.com/Stefan-Pretorius/OroroBrowse.
+#
+# Amazon VOD's other dependencies (script.module.beautifulsoup4, .requests,
+# .pyxbmct, .inputstreamhelper) deliberately come from Kodi's official
+# repository, which is enabled by default. Duplicating those here would let a
+# stale copy of ours be installed in place of a newer official one.
+def bundled_addons(thirdparty_dir=THIRDPARTY_DIR):
+    """
+    Every add-on zip vendored in thirdparty/, as paths, sorted.
+
+    Discovery rather than a hardcoded list, so adding or refreshing a bundled
+    add-on is a file operation and the published index cannot drift out of
+    step with what is actually vendored.
+    """
+    if not os.path.isdir(thirdparty_dir):
+        return ()
+    return tuple(os.path.join(thirdparty_dir, name)
+                 for name in sorted(os.listdir(thirdparty_dir))
+                 if name.endswith(".zip"))
+
+
+BUNDLED_ADDONS = bundled_addons()
 
 # The repository add-on is also copied to the site root: Kodi does not look
 # there when installing from the repository, but it is the "install from zip
@@ -168,6 +192,11 @@ def write_addons_xml(addon_contents):
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         "<addons>\n{0}\n</addons>\n"
     ).format("\n".join(bodies))
+    # Several bundled add-ons ship their manifest with CRLF endings. Kodi does
+    # not care either way, but normalising keeps the published index to LF only
+    # - diffable, and its checksum a function of the content rather than of
+    # whichever editor last touched an upstream manifest.
+    xml = xml.replace("\r\n", "\n").replace("\r", "\n")
     checksum = hashlib.md5(xml.encode("utf-8")).hexdigest()
     return xml, checksum
 

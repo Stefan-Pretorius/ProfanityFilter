@@ -113,7 +113,7 @@ would rather not have it.
    `https://stefan-pretorius.github.io/ProfanityFilter/`
    Give it a name (e.g. `ProfanityFilter`).
 3. **Settings → Add-ons → Install from zip file** → browse to that source → the
-   listing shows real filenames (e.g. `repository.profanityfilter-1.0.2.zip`) →
+   listing shows real filenames (e.g. `repository.profanityfilter-1.0.3.zip`) →
    select it and install.
 4. **Install from repository → Profanity Filter Repository → Profanity
    Filter → Install.**
@@ -127,25 +127,31 @@ no second URL to find or keep track of.
 
 **Amazon VOD (Prime Video)**
 
-5. **Install from repository → Profanity Filter Repository → Add-on
-   repository → Sandmann79s Repository → Install.**
-6. **Install from repository → Sandmann79s Repository → Video add-ons →
-   Amazon VOD → Install.** Kodi fetches the eight modules it needs by itself.
-7. Open Amazon VOD once and sign in with the account that holds the Prime
+5. **Install from repository → Profanity Filter Repository → Video add-ons →
+   Amazon VOD → Install.** Kodi fetches the four remaining modules it needs
+   from its own repository by itself, so this is a single click.
+6. Open Amazon VOD once and sign in with the account that holds the Prime
    subscription (the phone-number account, not the e-mail-only one), then switch
    on its **logging** option — the filter needs that to find the subtitle. See
    [How it finds the subtitle](#how-it-finds-the-subtitle).
 
-Amazon VOD's own code is deliberately **not** copied here: the add-on above is a
-766-byte pointer to Sandmann79's live index, so Amazon VOD keeps updating from
-upstream rather than going stale.
+Amazon VOD is included here rather than pointed at, because the pointer alone
+does not work reliably: it is an add-on whose only job is to fetch a second
+index from `raw.githubusercontent.com`, and until that second fetch happens the
+nested repository is empty — no Amazon VOD, no error message, nothing. What is
+published here instead is Sandmann79's own release, unchanged, served from the
+same host as the filter.
+
+If you would rather have Amazon VOD update straight from upstream as well, step
+5b is optional: **Add-on repository → Sandmann79s Repository → Install**. Then
+Kodi offers whichever of the two routes has the newer version.
 
 **Ororo TV Browse**
 
-8. Install the **Ororo TV** add-on itself (`plugin.video.ororotv`) and sign in
+7. Install the **Ororo TV** add-on itself (`plugin.video.ororotv`) and sign in
    first. Ororo TV Browse reuses that login, shares its My Shows list and plays
    through it — which is also what keeps the filter working on ororo.
-9. **Install from repository → Profanity Filter Repository → Video add-ons →
+8. **Install from repository → Profanity Filter Repository → Video add-ons →
    Ororo TV Browse → Install.**
 
 Ororo TV Browse gives ororo.tv a Netflix-style front end: featured rows for the
@@ -155,7 +161,7 @@ navigation, and combined search over films and TV shows. It is developed in
 published here unchanged.
 
 [thirdparty/README.md](thirdparty/README.md) records the exact version, size,
-SHA-256 and licence of each bundled add-on.
+SHA-256 and licence of each bundled add-on, and how to refresh them.
 
 ## Updates
 
@@ -227,10 +233,10 @@ full report on screen.
 
 Grab `service.profanity.filter-<version>.zip` from the
 [Releases](../../releases) page and install it via
-**Settings → Add-ons → Install from zip file**. The same page carries
-`repository.sandmann79.plugins-<version>.zip` and
-`plugin.video.ororotv.browse-<version>.zip`, if you would rather install those
-from a file than from the repository above.
+**Settings → Add-ons → Install from zip file**. The same page carries every
+bundled add-on — Amazon VOD and its modules, Sandmann79's repository pointer and
+Ororo TV Browse — if you would rather install those from a file than from the
+repository above.
 
 ## Customising the word list
 
@@ -286,9 +292,9 @@ git push --tags
 ```
 
 The workflow builds the zips, attaches them to a GitHub Release — the filter,
-this repository add-on, and the bundled add-ons (Amazon VOD's repository and
-Ororo TV Browse) — and updates the GitHub Pages repository (Kodi then updates
-automatically).
+this repository add-on, and every bundled add-on (Amazon VOD and its modules,
+Amazon VOD's repository pointer, and Ororo TV Browse) — and updates the GitHub
+Pages repository (Kodi then updates automatically).
 
 To see what will be published first, run it locally:
 
@@ -305,9 +311,12 @@ service.profanity.filter/     # the add-on itself
   resources/filter.txt        # the word list you can edit
   resources/lib/              # parsers, matcher, mute controller, amazon_vod
 repository.profanityfilter/   # repo add-on (installed once)
-thirdparty/                   # bundled add-ons: Sandmann79's repository and Ororo TV Browse
+thirdparty/                   # bundled add-ons, discovered as thirdparty/*.zip:
+                              #   Amazon VOD + its 3 private modules, Sandmann79's
+                              #   repository pointer, Ororo TV Browse
 tests/                        # pure-Python unit tests (not shipped)
 tools/make_release.py         # builds zips + addons.xml locally
+tools/vendor_sandmann.py      # refreshes the mirrored Amazon VOD files
 .github/workflows/release.yml # builds + publishes on every v* tag
 filter-full.txt               # archived 2,750-word list (reference only)
 ```

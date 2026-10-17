@@ -47,6 +47,18 @@ REPO_ID, REPO_VERSION = make_release.parse_addon_meta(REPO_XML)
 
 BUNDLED_ZIPS = [os.path.basename(p) for p in make_release.BUNDLED_ADDONS]
 
+AMAZON_VOD_ID = "plugin.video.amazon-test"
+
+# What Amazon VOD needs that does not come from this repository. Kodi's own
+# repository is enabled on every installation, so it resolves these by itself.
+FROM_KODI_OFFICIAL = {
+    "xbmc.python",
+    "script.module.beautifulsoup4",
+    "script.module.requests",
+    "script.module.pyxbmct",
+    "script.module.inputstreamhelper",
+}
+
 
 class BuildTests(unittest.TestCase):
     """One real build, shared by the whole class (it writes ~a few hundred KB)."""
@@ -137,10 +149,50 @@ class BuildTests(unittest.TestCase):
         ids = self.index_ids()
         self.assertIn(SERVICE_ID, ids)
         self.assertIn(REPO_ID, ids)
-        # Amazon VOD's repository, so Prime Video is installable from here.
+        # Amazon VOD's repository, so a box can also track it upstream.
         self.assertIn("repository.sandmann79.plugins", ids)
         # Our own browse add-on, developed in its own repository.
         self.assertIn("plugin.video.ororotv.browse", ids)
+
+    def test_amazon_vod_installs_from_this_repository_alone(self):
+        # Regression test for the reported failure: the repository carried only
+        # a pointer to Sandmann79's repository add-on, which has to fetch a
+        # second index from raw.githubusercontent.com. When that nested fetch
+        # does not happen the nested repository looks empty and Amazon VOD
+        # never appears, so Prime Video cannot be installed from here at all.
+        # Amazon VOD and its private modules must therefore be published here.
+        ids = self.index_ids()
+        self.assertIn(AMAZON_VOD_ID, ids)
+        for module in ("script.module.amazoncaptcha",
+                       "script.module.mechanicalsoup",
+                       "script.module.pyautogui"):
+            self.assertIn(module, ids)
+
+    def test_every_amazon_vod_requirement_is_resolvable(self):
+        # Catches the real risk of mirroring: an upstream Amazon VOD that grows
+        # a dependency on some further module of Sandmann79's that we have not
+        # vendored. Installing it would then fail with an unmet dependency.
+        version = self.index_versions().get(AMAZON_VOD_ID)
+        self.assertIsNotNone(
+            version, "{} is not in the index, so it cannot be installed "
+                     "from this repository".format(AMAZON_VOD_ID))
+        path = os.path.join(self.pages, AMAZON_VOD_ID,
+                            "{0}-{1}.zip".format(AMAZON_VOD_ID, version))
+        with zipfile.ZipFile(path) as archive:
+            content = archive.read(
+                "{0}/addon.xml".format(AMAZON_VOD_ID)).decode("utf-8")
+        requires = ET.fromstring(content).find("requires")
+        self.assertIsNotNone(requires, "Amazon VOD declares no requirements?")
+
+        available = set(self.index_ids()) | FROM_KODI_OFFICIAL
+        for node in requires:
+            requirement = node.get("addon")
+            self.assertIn(
+                requirement, available,
+                "{} requires {}, which is neither published here nor known to "
+                "come from Kodi's official repository - vendor it in "
+                "thirdparty/ (see tools/vendor_sandmann.py) or add it to "
+                "FROM_KODI_OFFICIAL".format(AMAZON_VOD_ID, requirement))
 
     def test_index_lists_each_addon_exactly_once(self):
         ids = self.index_ids()
@@ -210,6 +262,21 @@ class BuildTests(unittest.TestCase):
         self.assertIn("packages-py3/addons.xml", content)
         self.assertIn('minversion="18.9.0"', content)
 
+    def test_bundled_zips_are_published_unchanged(self):
+        # Byte for byte. These are other people's signed-off releases; a
+        # repack would change what users run, and Amazon VOD is GPL code whose
+        # distributed form should stay exactly as upstream published it.
+        for src in make_release.BUNDLED_ADDONS:
+            addon_id, version, _content = make_release.read_bundled_meta(src)
+            published = os.path.join(self.pages, addon_id,
+                                     "{0}-{1}.zip".format(addon_id, version))
+            with open(src, "rb") as fh:
+                original = fh.read()
+            with open(published, "rb") as fh:
+                republished = fh.read()
+            self.assertEqual(original, republished,
+                             "{} was altered on the way into the repository".format(addon_id))
+
     # -- browsability ----------------------------------------------------
 
     def test_directory_listings_expose_every_zip(self):
@@ -275,6 +342,30 @@ class BundledMetaTests(unittest.TestCase):
                 make_release.read_bundled_meta(empty)
         finally:
             os.remove(empty)
+
+    def test_bundled_addons_are_discovered_from_the_directory(self):
+        # Discovery, not a hardcoded list: dropping a zip in thirdparty/ has to
+        # be enough for the next build to publish and index it.
+        tmp = tempfile.mkdtemp(prefix="thirdparty-")
+        try:
+            for name in ("b-1.0.zip", "a-2.0.zip", "notes.txt"):
+                with open(os.path.join(tmp, name), "w", encoding="utf-8") as fh:
+                    fh.write("x")
+            discovered = [os.path.basename(p)
+                          for p in make_release.bundled_addons(tmp)]
+            self.assertEqual(discovered, ["a-2.0.zip", "b-1.0.zip"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_bundled_addons_tolerates_a_missing_directory(self):
+        self.assertEqual(
+            make_release.bundled_addons(os.path.join(ROOT, "no-such-directory")),
+            ())
+
+    def test_the_repository_really_does_vendor_something(self):
+        # A silent glob failure would publish an index with no Amazon VOD in it
+        # and nothing else would complain.
+        self.assertTrue(make_release.BUNDLED_ADDONS)
 
 
 if __name__ == "__main__":
